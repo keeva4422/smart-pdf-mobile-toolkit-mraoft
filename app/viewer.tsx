@@ -8,6 +8,7 @@ import { usePDF } from '@/contexts/PDFContext';
 import { PDFViewer } from '@/components/PDFViewer';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import AdBanner from '@/components/AdBanner';
 
 export default function ViewerScreen() {
   const router = useRouter();
@@ -57,12 +58,28 @@ export default function ViewerScreen() {
     router.push('/chat');
   };
 
+  const handleConverter = () => {
+    router.push('/converter');
+  };
+
+  const handleAIFeatures = () => {
+    router.push('/ai-features');
+  };
+
   return (
-    <>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: currentDocument.name,
           headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.push('/(tabs)/(home)/')}
+            >
+              <IconSymbol name="house.fill" size={22} color={colors.primary} />
+            </Pressable>
+          ),
           headerRight: () => (
             <View style={styles.headerButtons}>
               <Pressable onPress={handleChat} style={styles.headerButton}>
@@ -76,53 +93,63 @@ export default function ViewerScreen() {
         }}
       />
 
-      <View style={commonStyles.container}>
-        {/* PDF Viewer */}
-        <View style={styles.viewerContainer}>
-          <PDFViewer
-            source={{ uri: currentDocument.uri }}
-            onLoadComplete={handleLoadComplete}
-            onPageChanged={handlePageChanged}
-          />
-        </View>
-
-        {/* Page Indicator */}
-        {totalPages > 0 && (
-          <View style={styles.pageIndicator}>
-            <Text style={styles.pageText}>
-              Page {currentPage} of {totalPages}
-            </Text>
-          </View>
-        )}
-
-        {/* Action Buttons */}
-        <View style={styles.actionBar}>
-          <Pressable style={styles.actionButton} onPress={handleOCR}>
-            <IconSymbol name="text.viewfinder" size={24} color={colors.primary} />
-            <Text style={styles.actionButtonText}>OCR</Text>
-          </Pressable>
-
-          <Pressable style={styles.actionButton} onPress={handleEdit}>
-            <IconSymbol name="pencil" size={24} color={colors.primary} />
-            <Text style={styles.actionButtonText}>Edit</Text>
-          </Pressable>
-
-          <Pressable style={styles.actionButton} onPress={handleSummarize}>
-            <IconSymbol name="doc.text" size={24} color={colors.primary} />
-            <Text style={styles.actionButtonText}>Summarize</Text>
-          </Pressable>
-
-          <Pressable style={styles.actionButton} onPress={handleChat}>
-            <IconSymbol name="sparkles" size={24} color={colors.accent} />
-            <Text style={styles.actionButtonText}>Chat</Text>
-          </Pressable>
-        </View>
+      <View style={styles.viewerContainer}>
+        <PDFViewer
+          source={{ uri: currentDocument.uri }}
+          onLoadComplete={handleLoadComplete}
+          onPageChanged={handlePageChanged}
+        />
       </View>
-    </>
+
+      {totalPages > 0 && (
+        <View style={styles.pageIndicator}>
+          <Text style={styles.pageText}>
+            Page {currentPage} of {totalPages}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.actionBar}>
+        <Pressable style={styles.actionButton} onPress={handleOCR}>
+          <IconSymbol name="text.viewfinder" size={22} color={colors.primary} />
+          <Text style={styles.actionButtonText}>OCR</Text>
+        </Pressable>
+
+        <Pressable style={styles.actionButton} onPress={handleEdit}>
+          <IconSymbol name="pencil" size={22} color={colors.primary} />
+          <Text style={styles.actionButtonText}>Edit</Text>
+        </Pressable>
+
+        <Pressable style={styles.actionButton} onPress={handleSummarize}>
+          <IconSymbol name="doc.text" size={22} color={colors.primary} />
+          <Text style={styles.actionButtonText}>Summarize</Text>
+        </Pressable>
+
+        <Pressable style={styles.actionButton} onPress={handleConverter}>
+          <IconSymbol name="arrow.triangle.2.circlepath" size={22} color={colors.accent} />
+          <Text style={styles.actionButtonText}>Convert</Text>
+        </Pressable>
+
+        <Pressable style={styles.actionButton} onPress={handleAIFeatures}>
+          <IconSymbol name="sparkles" size={22} color={colors.secondary} />
+          <Text style={styles.actionButtonText}>AI Tools</Text>
+        </Pressable>
+      </View>
+
+      <AdBanner position="bottom" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    marginLeft: 12,
+    padding: 8,
+  },
   headerButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -154,8 +181,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     justifyContent: 'space-around',
     boxShadow: '0px -2px 8px rgba(0, 0, 0, 0.1)',
     elevation: 8,
@@ -163,12 +190,12 @@ const styles = StyleSheet.create({
   actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minWidth: 70,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    minWidth: 60,
   },
   actionButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: colors.text,
     marginTop: 4,

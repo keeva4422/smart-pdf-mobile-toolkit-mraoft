@@ -26,6 +26,8 @@ interface Message {
   timestamp: number;
 }
 
+const EMOJI_SHORTCUTS = ['👍', '❤️', '😊', '🎉', '🤔', '📚', '✅', '💡'];
+
 export default function ChatScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -36,25 +38,24 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [provider, setProvider] = useState<'openai' | 'gemini'>('openai');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    // Load conversation if ID is provided
     if (params.conversationId) {
       loadConversation(params.conversationId as string);
     } else {
-      // Add welcome message
       setMessages([
         {
           id: 'welcome',
           role: 'assistant',
-          content: `Hello! I'm your SmartPDF assistant. I can help you with:
+          content: `Hello! 👋 I'm your SmartPDF assistant. I can help you with:
 
-• Understanding app features
-• Analyzing and summarizing documents
-• Extracting key points
-• Creating revision questions
-• Answering questions about your PDFs
+• 📄 Understanding app features
+• 🔍 Analyzing and summarizing documents
+• 🎯 Extracting key points
+• ❓ Creating revision questions
+• 💬 Answering questions about your PDFs
 
 How can I help you today?`,
           timestamp: Date.now(),
@@ -102,9 +103,9 @@ How can I help you today?`,
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
     setLoading(true);
+    setShowEmojiPicker(false);
 
     try {
-      // Get document text if available
       let documentText = '';
       if (currentDocument && ocrResults && ocrResults.size > 0) {
         const textArray: string[] = [];
@@ -114,7 +115,6 @@ How can I help you today?`,
         documentText = textArray.join('\n\n');
       }
 
-      // Build history
       const history = messages
         .filter((m) => m.id !== 'welcome')
         .map((m) => ({
@@ -122,7 +122,6 @@ How can I help you today?`,
           content: m.content,
         }));
 
-      // Call chat assistant edge function
       const { data, error } = await supabase.functions.invoke('chat-assistant', {
         body: {
           message: userMessage.content,
@@ -149,15 +148,12 @@ How can I help you today?`,
         setConversationId(data.conversationId);
       }
 
-      // Scroll to bottom
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error: any) {
       console.error('Error sending message:', error);
       Alert.alert('Error', error.message || 'Failed to send message');
-      
-      // Remove user message on error
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setLoading(false);
@@ -168,19 +164,24 @@ How can I help you today?`,
     let prompt = '';
     switch (action) {
       case 'summarize':
-        prompt = 'Please provide a comprehensive summary of this document with key points and main takeaways.';
+        prompt = '📝 Please provide a comprehensive summary of this document with key points and main takeaways.';
         break;
       case 'questions':
-        prompt = 'Generate 5 revision questions based on this document to test understanding.';
+        prompt = '❓ Generate 5 revision questions based on this document to test understanding.';
         break;
       case 'keypoints':
-        prompt = 'Extract and list the most important key points from this document.';
+        prompt = '🎯 Extract and list the most important key points from this document.';
         break;
       case 'explain':
-        prompt = 'Explain the main concepts in this document in simple terms.';
+        prompt = '💡 Explain the main concepts in this document in simple terms.';
         break;
     }
     setInputText(prompt);
+  };
+
+  const addEmoji = (emoji: string) => {
+    setInputText(prev => prev + emoji);
+    setShowEmojiPicker(false);
   };
 
   return (
@@ -193,6 +194,14 @@ How can I help you today?`,
         options={{
           title: 'AI Assistant',
           headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.push('/(tabs)/(home)/')}
+            >
+              <IconSymbol name="house.fill" size={22} color={colors.primary} />
+            </Pressable>
+          ),
           headerRight: () => (
             <View style={styles.headerRight}>
               <Pressable
@@ -243,13 +252,15 @@ How can I help you today?`,
               <IconSymbol
                 name={message.role === 'user' ? 'person.fill' : 'sparkles'}
                 size={16}
-                color={message.role === 'user' ? colors.primary : colors.accent}
+                color={message.role === 'user' ? '#FFFFFF' : colors.accent}
               />
-              <Text style={styles.messageRole}>
+              <Text style={[styles.messageRole, message.role === 'user' && styles.userMessageRole]}>
                 {message.role === 'user' ? 'You' : 'Assistant'}
               </Text>
             </View>
-            <Text style={styles.messageText}>{message.content}</Text>
+            <Text style={[styles.messageText, message.role === 'user' && styles.userMessageText]}>
+              {message.content}
+            </Text>
           </View>
         ))}
 
@@ -260,7 +271,6 @@ How can I help you today?`,
           </View>
         )}
 
-        {/* Quick Actions */}
         {currentDocument && ocrResults && ocrResults.size > 0 && messages.length <= 1 && (
           <View style={styles.quickActions}>
             <Text style={styles.quickActionsTitle}>Quick Actions:</Text>
@@ -298,7 +308,29 @@ How can I help you today?`,
         )}
       </ScrollView>
 
+      {showEmojiPicker && (
+        <View style={styles.emojiPicker}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {EMOJI_SHORTCUTS.map((emoji, index) => (
+              <Pressable
+                key={index}
+                style={styles.emojiButton}
+                onPress={() => addEmoji(emoji)}
+              >
+                <Text style={styles.emojiText}>{emoji}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <View style={styles.inputContainer}>
+        <Pressable
+          style={styles.emojiToggle}
+          onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+        >
+          <Text style={styles.emojiToggleText}>😊</Text>
+        </Pressable>
         <TextInput
           style={styles.input}
           placeholder="Ask me anything..."
@@ -308,6 +340,7 @@ How can I help you today?`,
           multiline
           maxLength={1000}
           editable={!loading}
+          onSubmitEditing={sendMessage}
         />
         <Pressable
           style={[styles.sendButton, (!inputText.trim() || loading) && styles.sendButtonDisabled]}
@@ -316,7 +349,7 @@ How can I help you today?`,
         >
           <IconSymbol
             name="arrow.up.circle.fill"
-            size={32}
+            size={40}
             color={!inputText.trim() || loading ? colors.textSecondary : colors.primary}
           />
         </Pressable>
@@ -329,6 +362,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  backButton: {
+    marginLeft: 12,
+    padding: 8,
   },
   headerRight: {
     flexDirection: 'row',
@@ -404,10 +441,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
+  userMessageRole: {
+    color: '#FFFFFF',
+  },
   messageText: {
     fontSize: 15,
     lineHeight: 22,
     color: colors.text,
+  },
+  userMessageText: {
+    color: '#FFFFFF',
   },
   loadingText: {
     fontSize: 14,
@@ -445,6 +488,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
+  emojiPicker: {
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  emojiButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  emojiText: {
+    fontSize: 24,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -453,6 +510,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: 8,
+  },
+  emojiToggle: {
+    padding: 8,
+    justifyContent: 'center',
+  },
+  emojiToggleText: {
+    fontSize: 24,
   },
   input: {
     flex: 1,
@@ -468,6 +532,8 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sendButtonDisabled: {
     opacity: 0.5,

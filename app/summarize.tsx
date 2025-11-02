@@ -6,6 +6,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { usePDF } from '@/contexts/PDFContext';
 import { supabase } from '@/app/integrations/supabase/client';
+import AdBanner from '@/components/AdBanner';
 
 export default function SummarizeScreen() {
   const router = useRouter();
@@ -25,21 +26,23 @@ export default function SummarizeScreen() {
     setError('');
     
     try {
-      // Get text from OCR results or use placeholder
       let documentText = '';
       
-      if (ocrResults && ocrResults.length > 0) {
-        documentText = ocrResults.join('\n\n');
+      if (ocrResults && ocrResults.size > 0) {
+        const textArray: string[] = [];
+        ocrResults.forEach((result) => {
+          textArray.push(result.text);
+        });
+        documentText = textArray.join('\n\n');
       } else {
         documentText = `Document: ${currentDocument.name}\n\nThis is a PDF document that needs to be processed with OCR first to extract text for summarization. Please run OCR on this document before generating a summary.`;
       }
 
-      // Call the Supabase Edge Function
       const { data, error: functionError } = await supabase.functions.invoke('summarize-pdf', {
         body: {
           text: documentText,
           provider: provider,
-          maxLength: 10000, // Limit text length to avoid token limits
+          maxLength: 10000,
         },
       });
 
@@ -80,11 +83,19 @@ export default function SummarizeScreen() {
   };
 
   return (
-    <>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: 'Summarize PDF',
           headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.push('/(tabs)/(home)/')}
+            >
+              <IconSymbol name="house.fill" size={22} color={colors.primary} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable onPress={handleShare} style={styles.headerButton}>
               <IconSymbol name="square.and.arrow.up" size={22} color={colors.primary} />
@@ -93,163 +104,171 @@ export default function SummarizeScreen() {
         }}
       />
 
-      <View style={commonStyles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.infoCard}>
-            <IconSymbol name="doc.text.magnifyingglass" size={48} color={colors.primary} />
-            <Text style={styles.infoTitle}>AI-Powered Summarization</Text>
-            <Text style={styles.infoText}>
-              Generate concise summaries of your PDF documents using advanced AI technology.
-            </Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.infoCard}>
+          <IconSymbol name="doc.text.magnifyingglass" size={48} color={colors.primary} />
+          <Text style={styles.infoTitle}>AI-Powered Summarization</Text>
+          <Text style={styles.infoText}>
+            Generate concise summaries of your PDF documents using advanced AI technology.
+          </Text>
+        </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Document</Text>
-            <View style={styles.documentCard}>
-              <IconSymbol name="doc.fill" size={32} color={colors.primary} />
-              <View style={styles.documentInfo}>
-                <Text style={styles.documentName} numberOfLines={1}>
-                  {currentDocument.name}
-                </Text>
-                <Text style={styles.documentMeta}>
-                  {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>AI Provider</Text>
-            <View style={styles.optionCard}>
-              <View style={styles.optionButtons}>
-                <Pressable 
-                  style={[styles.optionButton, provider === 'openrouter' && styles.optionButtonActive]}
-                  onPress={() => setProvider('openrouter')}
-                >
-                  <IconSymbol 
-                    name="cpu" 
-                    size={20} 
-                    color={provider === 'openrouter' ? colors.primary : colors.textSecondary} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText, 
-                    provider === 'openrouter' && styles.optionButtonTextActive
-                  ]}>
-                    OpenRouter
-                  </Text>
-                </Pressable>
-                <Pressable 
-                  style={[styles.optionButton, provider === 'gemini' && styles.optionButtonActive]}
-                  onPress={() => setProvider('gemini')}
-                >
-                  <IconSymbol 
-                    name="sparkles" 
-                    size={20} 
-                    color={provider === 'gemini' ? colors.primary : colors.textSecondary} 
-                  />
-                  <Text style={[
-                    styles.optionButtonText, 
-                    provider === 'gemini' && styles.optionButtonTextActive
-                  ]}>
-                    Gemini
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          {!ocrResults || ocrResults.length === 0 ? (
-            <View style={styles.warningCard}>
-              <IconSymbol name="exclamationmark.triangle.fill" size={24} color={colors.warning} />
-              <Text style={styles.warningText}>
-                No text extracted yet. Run OCR first to extract text from your PDF for better summarization results.
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Document</Text>
+          <View style={styles.documentCard}>
+            <IconSymbol name="doc.fill" size={32} color={colors.primary} />
+            <View style={styles.documentInfo}>
+              <Text style={styles.documentName} numberOfLines={1}>
+                {currentDocument.name}
               </Text>
-              <Pressable
-                style={[buttonStyles.accent, styles.ocrButton]}
-                onPress={() => router.push('/ocr')}
+              <Text style={styles.documentMeta}>
+                {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AI Provider</Text>
+          <View style={styles.optionCard}>
+            <View style={styles.optionButtons}>
+              <Pressable 
+                style={[styles.optionButton, provider === 'openrouter' && styles.optionButtonActive]}
+                onPress={() => setProvider('openrouter')}
               >
-                <Text style={commonStyles.buttonText}>Run OCR</Text>
+                <IconSymbol 
+                  name="cpu" 
+                  size={20} 
+                  color={provider === 'openrouter' ? colors.primary : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.optionButtonText, 
+                  provider === 'openrouter' && styles.optionButtonTextActive
+                ]}>
+                  OpenRouter
+                </Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.optionButton, provider === 'gemini' && styles.optionButtonActive]}
+                onPress={() => setProvider('gemini')}
+              >
+                <IconSymbol 
+                  name="sparkles" 
+                  size={20} 
+                  color={provider === 'gemini' ? colors.primary : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.optionButtonText, 
+                  provider === 'gemini' && styles.optionButtonTextActive
+                ]}>
+                  Gemini
+                </Text>
               </Pressable>
             </View>
-          ) : null}
-
-          {!processing && !summary && (
-            <Pressable
-              style={[buttonStyles.primary, styles.actionButton]}
-              onPress={generateSummary}
-            >
-              <IconSymbol name="sparkles" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-              <Text style={commonStyles.buttonText}>Generate Summary</Text>
-            </Pressable>
-          )}
-
-          {processing && (
-            <View style={styles.progressCard}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.progressText}>Generating summary with {provider === 'openrouter' ? 'OpenRouter' : 'Gemini'}...</Text>
-              <Text style={styles.progressSubtext}>This may take a moment</Text>
-            </View>
-          )}
-
-          {error && (
-            <View style={styles.errorCard}>
-              <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          {summary && (
-            <View style={styles.resultSection}>
-              <View style={styles.resultHeader}>
-                <Text style={styles.sectionTitle}>Summary</Text>
-                <View style={styles.resultBadge}>
-                  <IconSymbol name="checkmark.circle.fill" size={16} color={colors.success} />
-                  <Text style={styles.resultBadgeText}>Complete</Text>
-                </View>
-              </View>
-              
-              <View style={styles.summaryCard}>
-                <ScrollView style={styles.summaryScroll} nestedScrollEnabled>
-                  <Text style={styles.summaryText}>{summary}</Text>
-                </ScrollView>
-              </View>
-
-              <View style={styles.actionRow}>
-                <Pressable
-                  style={[buttonStyles.accent, styles.halfButton]}
-                  onPress={generateSummary}
-                >
-                  <IconSymbol name="arrow.clockwise" size={18} color="#FFFFFF" />
-                  <Text style={[commonStyles.buttonText, styles.halfButtonText]}>Regenerate</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[buttonStyles.primary, styles.halfButton]}
-                  onPress={handleExportSummary}
-                >
-                  <IconSymbol name="square.and.arrow.down" size={18} color="#FFFFFF" />
-                  <Text style={[commonStyles.buttonText, styles.halfButtonText]}>Export</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.featureNote}>
-            <IconSymbol name="info.circle" size={20} color={colors.success} />
-            <Text style={styles.featureNoteText}>
-              AI summarization is now powered by {provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'} API for accurate, intelligent summaries.
-            </Text>
           </View>
-        </ScrollView>
-      </View>
-    </>
+        </View>
+
+        {!ocrResults || ocrResults.size === 0 ? (
+          <View style={styles.warningCard}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={24} color={colors.warning} />
+            <Text style={styles.warningText}>
+              No text extracted yet. Run OCR first to extract text from your PDF for better summarization results.
+            </Text>
+            <Pressable
+              style={[buttonStyles.accent, styles.ocrButton]}
+              onPress={() => router.push('/ocr')}
+            >
+              <Text style={commonStyles.buttonText}>Run OCR</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!processing && !summary && (
+          <Pressable
+            style={[buttonStyles.primary, styles.actionButton]}
+            onPress={generateSummary}
+          >
+            <IconSymbol name="sparkles" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+            <Text style={commonStyles.buttonText}>Generate Summary</Text>
+          </Pressable>
+        )}
+
+        {processing && (
+          <View style={styles.progressCard}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.progressText}>Generating summary with {provider === 'openrouter' ? 'OpenRouter' : 'Gemini'}...</Text>
+            <Text style={styles.progressSubtext}>This may take a moment</Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorCard}>
+            <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {summary && (
+          <View style={styles.resultSection}>
+            <View style={styles.resultHeader}>
+              <Text style={styles.sectionTitle}>Summary</Text>
+              <View style={styles.resultBadge}>
+                <IconSymbol name="checkmark.circle.fill" size={16} color={colors.success} />
+                <Text style={styles.resultBadgeText}>Complete</Text>
+              </View>
+            </View>
+            
+            <View style={styles.summaryCard}>
+              <ScrollView style={styles.summaryScroll} nestedScrollEnabled>
+                <Text style={styles.summaryText}>{summary}</Text>
+              </ScrollView>
+            </View>
+
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[buttonStyles.accent, styles.halfButton]}
+                onPress={generateSummary}
+              >
+                <IconSymbol name="arrow.clockwise" size={18} color="#FFFFFF" />
+                <Text style={[commonStyles.buttonText, styles.halfButtonText]}>Regenerate</Text>
+              </Pressable>
+
+              <Pressable
+                style={[buttonStyles.primary, styles.halfButton]}
+                onPress={handleExportSummary}
+              >
+                <IconSymbol name="square.and.arrow.down" size={18} color="#FFFFFF" />
+                <Text style={[commonStyles.buttonText, styles.halfButtonText]}>Export</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.featureNote}>
+          <IconSymbol name="info.circle" size={20} color={colors.success} />
+          <Text style={styles.featureNoteText}>
+            AI summarization is now powered by {provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'} API for accurate, intelligent summaries.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <AdBanner position="bottom" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    marginLeft: 12,
+    padding: 8,
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   headerButton: {
     padding: 8,

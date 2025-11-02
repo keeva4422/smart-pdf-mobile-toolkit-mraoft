@@ -7,6 +7,7 @@ import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { usePDF } from '@/contexts/PDFContext';
 import { supabase } from '@/app/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import AdBanner from '@/components/AdBanner';
 
 interface Annotation {
   id: string;
@@ -71,7 +72,6 @@ export default function EditScreen() {
     const newAnnotations = [...annotations, newAnnotation];
     setAnnotations(newAnnotations);
     
-    // Update history for undo/redo
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(newAnnotations);
     setHistory(newHistory);
@@ -143,13 +143,11 @@ export default function EditScreen() {
 
     setSaving(true);
     try {
-      // Delete existing annotations for this document
       await supabase
         .from('pdf_annotations')
         .delete()
         .eq('document_id', currentDocument.id);
 
-      // Insert new annotations
       if (annotations.length > 0) {
         const annotationsToSave = annotations.map(ann => ({
           document_id: currentDocument.id,
@@ -185,11 +183,19 @@ export default function EditScreen() {
   };
 
   return (
-    <>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: 'Edit PDF',
           headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.push('/(tabs)/(home)/')}
+            >
+              <IconSymbol name="house.fill" size={22} color={colors.primary} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable onPress={handleSave} style={styles.headerButton} disabled={saving}>
               <Text style={[styles.saveButtonText, saving && styles.savingText]}>
@@ -200,134 +206,131 @@ export default function EditScreen() {
         }}
       />
 
-      <View style={commonStyles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.infoCard}>
-            <IconSymbol name="pencil.tip.crop.circle" size={48} color={colors.secondary} />
-            <Text style={styles.infoTitle}>PDF Editor</Text>
-            <Text style={styles.infoText}>
-              Annotate, highlight, and add comments to your PDF document.
-            </Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.infoCard}>
+          <IconSymbol name="pencil.tip.crop.circle" size={48} color={colors.secondary} />
+          <Text style={styles.infoTitle}>PDF Editor</Text>
+          <Text style={styles.infoText}>
+            Annotate, highlight, and add comments to your PDF document.
+          </Text>
+        </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Editing Tools</Text>
-            <View style={styles.toolsGrid}>
-              {tools.map((tool) => (
-                <Pressable
-                  key={tool.id}
-                  style={[
-                    styles.toolCard,
-                    selectedTool === tool.id && styles.toolCardActive,
-                  ]}
-                  onPress={() => handleToolSelect(tool.id)}
-                >
-                  <IconSymbol name={tool.icon as any} size={32} color={tool.color} />
-                  <Text style={styles.toolName}>{tool.name}</Text>
-                  {selectedTool === tool.id && (
-                    <View style={styles.activeIndicator}>
-                      <IconSymbol name="checkmark.circle.fill" size={20} color={colors.success} />
-                    </View>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Actions</Text>
-            <View style={styles.actionsRow}>
-              <Pressable 
-                style={[styles.actionButton, historyIndex === 0 && styles.actionButtonDisabled]} 
-                onPress={handleUndo}
-                disabled={historyIndex === 0}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Editing Tools</Text>
+          <View style={styles.toolsGrid}>
+            {tools.map((tool) => (
+              <Pressable
+                key={tool.id}
+                style={[
+                  styles.toolCard,
+                  selectedTool === tool.id && styles.toolCardActive,
+                ]}
+                onPress={() => handleToolSelect(tool.id)}
               >
-                <IconSymbol 
-                  name="arrow.uturn.backward" 
-                  size={24} 
-                  color={historyIndex === 0 ? colors.textSecondary : colors.primary} 
-                />
-                <Text style={[styles.actionText, historyIndex === 0 && styles.actionTextDisabled]}>
-                  Undo
-                </Text>
-              </Pressable>
-
-              <Pressable 
-                style={[styles.actionButton, historyIndex >= history.length - 1 && styles.actionButtonDisabled]} 
-                onPress={handleRedo}
-                disabled={historyIndex >= history.length - 1}
-              >
-                <IconSymbol 
-                  name="arrow.uturn.forward" 
-                  size={24} 
-                  color={historyIndex >= history.length - 1 ? colors.textSecondary : colors.primary} 
-                />
-                <Text style={[styles.actionText, historyIndex >= history.length - 1 && styles.actionTextDisabled]}>
-                  Redo
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Document Info</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>File Name:</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {currentDocument.name}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Annotations:</Text>
-              <Text style={styles.infoValue}>{annotations.length}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>History Steps:</Text>
-              <Text style={styles.infoValue}>{history.length}</Text>
-            </View>
-          </View>
-
-          {annotations.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recent Annotations</Text>
-              <ScrollView style={styles.annotationsList} nestedScrollEnabled>
-                {annotations.slice(-5).reverse().map((ann, index) => (
-                  <View key={ann.id} style={styles.annotationItem}>
-                    <IconSymbol 
-                      name={ann.type === 'highlight' ? 'highlighter' : 'text.cursor'} 
-                      size={20} 
-                      color={ann.color} 
-                    />
-                    <View style={styles.annotationInfo}>
-                      <Text style={styles.annotationText}>
-                        {ann.type === 'text' ? ann.text : `${ann.type} annotation`}
-                      </Text>
-                      <Text style={styles.annotationMeta}>Page {ann.page}</Text>
-                    </View>
+                <IconSymbol name={tool.icon as any} size={32} color={tool.color} />
+                <Text style={styles.toolName}>{tool.name}</Text>
+                {selectedTool === tool.id && (
+                  <View style={styles.activeIndicator}>
+                    <IconSymbol name="checkmark.circle.fill" size={20} color={colors.success} />
                   </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </View>
 
-          <Pressable
-            style={[buttonStyles.primary, styles.exportButton]}
-            onPress={handleExport}
-          >
-            <IconSymbol name="square.and.arrow.down" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={commonStyles.buttonText}>Export Edited PDF</Text>
-          </Pressable>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Actions</Text>
+          <View style={styles.actionsRow}>
+            <Pressable 
+              style={[styles.actionButton, historyIndex === 0 && styles.actionButtonDisabled]} 
+              onPress={handleUndo}
+              disabled={historyIndex === 0}
+            >
+              <IconSymbol 
+                name="arrow.uturn.backward" 
+                size={24} 
+                color={historyIndex === 0 ? colors.textSecondary : colors.primary} 
+              />
+              <Text style={[styles.actionText, historyIndex === 0 && styles.actionTextDisabled]}>
+                Undo
+              </Text>
+            </Pressable>
 
-          <View style={styles.featureNote}>
-            <IconSymbol name="info.circle" size={20} color={colors.success} />
-            <Text style={styles.featureNoteText}>
-              All editing tools are now functional! Your annotations are saved automatically.
+            <Pressable 
+              style={[styles.actionButton, historyIndex >= history.length - 1 && styles.actionButtonDisabled]} 
+              onPress={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+            >
+              <IconSymbol 
+                name="arrow.uturn.forward" 
+                size={24} 
+                color={historyIndex >= history.length - 1 ? colors.textSecondary : colors.primary} 
+              />
+              <Text style={[styles.actionText, historyIndex >= history.length - 1 && styles.actionTextDisabled]}>
+                Redo
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Document Info</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>File Name:</Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {currentDocument.name}
             </Text>
           </View>
-        </ScrollView>
-      </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Annotations:</Text>
+            <Text style={styles.infoValue}>{annotations.length}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>History Steps:</Text>
+            <Text style={styles.infoValue}>{history.length}</Text>
+          </View>
+        </View>
 
-      {/* Text Input Modal */}
+        {annotations.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Annotations</Text>
+            <ScrollView style={styles.annotationsList} nestedScrollEnabled>
+              {annotations.slice(-5).reverse().map((ann, index) => (
+                <View key={ann.id} style={styles.annotationItem}>
+                  <IconSymbol 
+                    name={ann.type === 'highlight' ? 'highlighter' : 'text.cursor'} 
+                    size={20} 
+                    color={ann.color} 
+                  />
+                  <View style={styles.annotationInfo}>
+                    <Text style={styles.annotationText}>
+                      {ann.type === 'text' ? ann.text : `${ann.type} annotation`}
+                    </Text>
+                    <Text style={styles.annotationMeta}>Page {ann.page}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <Pressable
+          style={[buttonStyles.primary, styles.exportButton]}
+          onPress={handleExport}
+        >
+          <IconSymbol name="square.and.arrow.down" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+          <Text style={commonStyles.buttonText}>Export Edited PDF</Text>
+        </Pressable>
+
+        <View style={styles.featureNote}>
+          <IconSymbol name="info.circle" size={20} color={colors.success} />
+          <Text style={styles.featureNoteText}>
+            All editing tools are now functional! Your annotations are saved automatically.
+          </Text>
+        </View>
+      </ScrollView>
+
       <Modal
         visible={showTextModal}
         transparent
@@ -368,14 +371,24 @@ export default function EditScreen() {
           </View>
         </View>
       </Modal>
-    </>
+
+      <AdBanner position="bottom" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  backButton: {
+    marginLeft: 12,
+    padding: 8,
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   headerButton: {
     marginRight: 16,
