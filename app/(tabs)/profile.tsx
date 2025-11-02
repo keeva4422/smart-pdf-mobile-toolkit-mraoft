@@ -1,12 +1,12 @@
 
-import { IconSymbol } from "@/components/IconSymbol";
-import { storageUtils } from "@/utils/storage";
-import { colors, commonStyles } from "@/styles/commonStyles";
 import React, { useState, useEffect, useCallback } from "react";
-import { Stack, useRouter } from "expo-router";
+import { IconSymbol } from "@/components/IconSymbol";
+import { colors, commonStyles } from "@/styles/commonStyles";
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Platform } from "react-native";
-import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/app/integrations/supabase/client";
+import { storageUtils } from "@/utils/storage";
+import { useAuth } from "@/contexts/AuthContext";
+import { Stack, useRouter } from "expo-router";
 
 interface SettingItem {
   id: string;
@@ -18,12 +18,14 @@ interface SettingItem {
 }
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
   const router = useRouter();
-  const [darkMode, setDarkMode] = useState(false);
-  const [autoOCR, setAutoOCR] = useState(true);
-  const [highQualityOCR, setHighQualityOCR] = useState(false);
+  const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
+  const [settings, setSettings] = useState({
+    notifications: true,
+    autoSave: true,
+    darkMode: false,
+  });
 
   const loadProfile = useCallback(async () => {
     if (!user) return;
@@ -35,43 +37,59 @@ export default function SettingsScreen() {
         .eq('id', user.id)
         .single();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error loading profile:', error);
         return;
       }
 
-      setProfile(data);
+      if (data) {
+        setProfile(data);
+      } else {
+        // Create profile if it doesn't exist
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || '',
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        } else {
+          setProfile(newProfile);
+        }
+      }
     } catch (error) {
       console.error('Exception loading profile:', error);
     }
   }, [user]);
 
   useEffect(() => {
-    loadSettings();
     loadProfile();
-  }, [loadProfile]);
+    loadSettings();
+  }, []);
 
   const loadSettings = async () => {
     try {
-      const settings = await storageUtils.getSettings();
-      setDarkMode(settings.darkMode || false);
-      setAutoOCR(settings.autoOCR !== false);
-      setHighQualityOCR(settings.highQualityOCR || false);
+      const savedSettings = await storageUtils.getSettings();
+      if (savedSettings) {
+        setSettings(savedSettings);
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
     }
   };
 
   const updateSetting = async (key: string, value: any) => {
-    try {
-      await storageUtils.saveSetting(key, value);
-      console.log(`Setting ${key} updated to ${value}`);
-    } catch (error) {
-      console.error('Error updating setting:', error);
-    }
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    await storageUtils.saveSettings(newSettings);
   };
 
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
     Alert.alert(
       'Clear Cache',
       'This will clear all cached OCR results. Are you sure?',
@@ -94,7 +112,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleClearRecent = () => {
+  const handleClearRecent = async () => {
     Alert.alert(
       'Clear Recent Files',
       'This will remove all recent files from the list. Are you sure?',
@@ -106,7 +124,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await storageUtils.clearRecentFiles();
-              Alert.alert('Success', 'Recent files cleared successfully');
+              Alert.alert('Success', 'Recent files cleared');
             } catch (error) {
               console.error('Error clearing recent files:', error);
               Alert.alert('Error', 'Failed to clear recent files');
@@ -117,7 +135,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
@@ -135,80 +153,55 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSettingPress = (item: SettingItem) => {
-    if (item.onPress) {
-      item.onPress();
-    }
-  };
-
-  const appearanceSettings: SettingItem[] = [
+  const settingsItems: SettingItem[] = [
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      icon: 'bell.fill',
+      type: 'toggle',
+      value: settings.notifications,
+      onPress: () => updateSetting('notifications', !settings.notifications),
+    },
+    {
+      id: 'autoSave',
+      title: 'Auto-save Annotations',
+      icon: 'arrow.down.doc.fill',
+      type: 'toggle',
+      value: settings.autoSave,
+      onPress: () => updateSetting('autoSave', !settings.autoSave),
+    },
     {
       id: 'darkMode',
       title: 'Dark Mode',
       icon: 'moon.fill',
       type: 'toggle',
-      value: darkMode,
-      onPress: () => {
-        const newValue = !darkMode;
-        setDarkMode(newValue);
-        updateSetting('darkMode', newValue);
-      },
+      value: settings.darkMode,
+      onPress: () => updateSetting('darkMode', !settings.darkMode),
     },
   ];
 
-  const ocrSettings: SettingItem[] = [
-    {
-      id: 'autoOCR',
-      title: 'Auto OCR',
-      icon: 'text.viewfinder',
-      type: 'toggle',
-      value: autoOCR,
-      onPress: () => {
-        const newValue = !autoOCR;
-        setAutoOCR(newValue);
-        updateSetting('autoOCR', newValue);
-      },
-    },
-    {
-      id: 'highQualityOCR',
-      title: 'High Quality OCR',
-      icon: 'sparkles',
-      type: 'toggle',
-      value: highQualityOCR,
-      onPress: () => {
-        const newValue = !highQualityOCR;
-        setHighQualityOCR(newValue);
-        updateSetting('highQualityOCR', newValue);
-      },
-    },
-  ];
-
-  const storageSettings: SettingItem[] = [
+  const actionItems: SettingItem[] = [
     {
       id: 'clearCache',
       title: 'Clear Cache',
-      icon: 'trash',
+      icon: 'trash.fill',
       type: 'action',
       onPress: handleClearCache,
     },
     {
       id: 'clearRecent',
       title: 'Clear Recent Files',
-      icon: 'trash',
+      icon: 'clock.arrow.circlepath',
       type: 'action',
       onPress: handleClearRecent,
     },
   ];
 
-  const accountSettings: SettingItem[] = [
-    {
-      id: 'signOut',
-      title: 'Sign Out',
-      icon: 'arrow.right.square',
-      type: 'action',
-      onPress: handleSignOut,
-    },
-  ];
+  const handleSettingPress = (item: SettingItem) => {
+    if (item.onPress) {
+      item.onPress();
+    }
+  };
 
   const renderSettingItem = (item: SettingItem) => {
     return (
@@ -218,7 +211,7 @@ export default function SettingsScreen() {
         onPress={() => handleSettingPress(item)}
       >
         <View style={styles.settingLeft}>
-          <IconSymbol name={item.icon} size={24} color={colors.text} />
+          <IconSymbol name={item.icon as any} size={24} color={colors.primary} />
           <Text style={styles.settingTitle}>{item.title}</Text>
         </View>
         {item.type === 'toggle' && (
@@ -226,7 +219,7 @@ export default function SettingsScreen() {
             value={item.value}
             onValueChange={() => handleSettingPress(item)}
             trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.buttonText}
+            thumbColor={colors.card}
           />
         )}
         {item.type === 'navigation' && (
@@ -256,47 +249,49 @@ export default function SettingsScreen() {
           <View style={styles.avatarContainer}>
             <IconSymbol name="person.circle.fill" size={80} color={colors.primary} />
           </View>
-          <Text style={styles.profileName}>{profile?.full_name || 'User'}</Text>
+          <Text style={styles.profileName}>
+            {profile?.full_name || user?.email?.split('@')[0] || 'User'}
+          </Text>
           <Text style={styles.profileEmail}>{user?.email}</Text>
         </View>
 
-        {/* Appearance Settings */}
+        {/* Settings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <View style={styles.settingsGroup}>
-            {appearanceSettings.map(renderSettingItem)}
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.settingsCard}>
+            {settingsItems.map(renderSettingItem)}
           </View>
         </View>
 
-        {/* OCR Settings */}
+        {/* Actions Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>OCR Settings</Text>
-          <View style={styles.settingsGroup}>
-            {ocrSettings.map(renderSettingItem)}
-          </View>
-        </View>
-
-        {/* Storage Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Storage</Text>
-          <View style={styles.settingsGroup}>
-            {storageSettings.map(renderSettingItem)}
-          </View>
-        </View>
-
-        {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.settingsGroup}>
-            {accountSettings.map(renderSettingItem)}
+          <Text style={styles.sectionTitle}>Actions</Text>
+          <View style={styles.settingsCard}>
+            {actionItems.map(renderSettingItem)}
           </View>
         </View>
 
         {/* App Info */}
-        <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>SmartPDF Toolkit v1.0.0</Text>
-          <Text style={styles.appInfoText}>© 2025 All rights reserved</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Version</Text>
+              <Text style={styles.infoValue}>1.0.0</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Platform</Text>
+              <Text style={styles.infoValue}>{Platform.OS}</Text>
+            </View>
+          </View>
         </View>
+
+        {/* Sign Out Button */}
+        <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+          <IconSymbol name="arrow.right.square" size={20} color={colors.error} />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -324,7 +319,7 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 4,
   },
@@ -340,12 +335,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
-    paddingLeft: 4,
   },
-  settingsGroup: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+  settingsCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
     overflow: 'hidden',
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
   },
   settingItem: {
     flexDirection: 'row',
@@ -358,20 +354,55 @@ const styles = StyleSheet.create({
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flex: 1,
   },
   settingTitle: {
     fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginLeft: 12,
+  },
+  infoCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+    elevation: 3,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  infoLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  infoValue: {
+    fontSize: 16,
     color: colors.text,
   },
-  appInfo: {
-    alignItems: 'center',
-    marginTop: 32,
-    paddingVertical: 20,
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
   },
-  appInfoText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error + '15',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    gap: 8,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
+    marginLeft: 8,
   },
 });

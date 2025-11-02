@@ -41,7 +41,7 @@ export default function HomeScreen() {
   useEffect(() => {
     loadRecentFiles();
     loadUserDocuments();
-  }, [loadRecentFiles, loadUserDocuments]);
+  }, []);
 
   const handleOpenPDF = async () => {
     try {
@@ -61,8 +61,10 @@ export default function HomeScreen() {
         name: file.name,
         uri: file.uri,
         size: file.size || 0,
+        mimeType: 'application/pdf',
+        dateAdded: Date.now(),
         pageCount: 0,
-        lastOpened: new Date(),
+        lastOpened: Date.now(),
       };
 
       setCurrentDocument(pdfDoc);
@@ -160,6 +162,10 @@ export default function HomeScreen() {
     );
   };
 
+  const handleOpenChat = () => {
+    router.push('/chat');
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -171,6 +177,11 @@ export default function HomeScreen() {
           },
           headerTintColor: colors.text,
           headerShadowVisible: false,
+          headerRight: () => (
+            <Pressable onPress={handleOpenChat} style={styles.chatButton}>
+              <IconSymbol name="message.fill" size={24} color={colors.primary} />
+            </Pressable>
+          ),
         }}
       />
 
@@ -180,6 +191,20 @@ export default function HomeScreen() {
           <Text style={styles.welcomeText}>Welcome back!</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
         </View>
+
+        {/* AI Assistant Banner */}
+        <Pressable style={styles.aiBanner} onPress={handleOpenChat}>
+          <View style={styles.aiBannerIcon}>
+            <IconSymbol name="sparkles" size={32} color={colors.accent} />
+          </View>
+          <View style={styles.aiBannerContent}>
+            <Text style={styles.aiBannerTitle}>AI Assistant</Text>
+            <Text style={styles.aiBannerText}>
+              Get help with document analysis, summaries, and more
+            </Text>
+          </View>
+          <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+        </Pressable>
 
         {/* Quick Actions */}
         <View style={styles.section}>
@@ -261,8 +286,8 @@ export default function HomeScreen() {
         {/* Sign Out Button */}
         <View style={styles.section}>
           <Pressable style={[buttonStyles.secondary, styles.signOutButton]} onPress={handleSignOut}>
-            <IconSymbol name="arrow.right.square" size={20} color={colors.primary} />
-            <Text style={[buttonStyles.secondaryText, styles.signOutText]}>Sign Out</Text>
+            <IconSymbol name="arrow.right.square" size={20} color={colors.buttonText} />
+            <Text style={[buttonStyles.primaryText, styles.signOutText]}>Sign Out</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -282,6 +307,10 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 100,
   },
+  chatButton: {
+    marginRight: 16,
+    padding: 8,
+  },
   welcomeSection: {
     marginBottom: 24,
   },
@@ -294,6 +323,39 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  aiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent + '15',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.accent + '30',
+  },
+  aiBannerIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  aiBannerContent: {
+    flex: 1,
+  },
+  aiBannerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  aiBannerText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   section: {
     marginBottom: 32,

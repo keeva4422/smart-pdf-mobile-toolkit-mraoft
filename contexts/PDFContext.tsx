@@ -3,17 +3,31 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { PDFDocument, OCRResult, PDFAnnotation } from '@/types/pdf';
 import { storageUtils } from '@/utils/storage';
 
+interface Annotation {
+  id: string;
+  type: 'highlight' | 'text' | 'drawing';
+  page: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  text?: string;
+  color: string;
+  timestamp: number;
+}
+
 interface PDFContextType {
   currentDocument: PDFDocument | null;
   recentFiles: PDFDocument[];
   ocrResults: Map<number, OCRResult>;
-  annotations: PDFAnnotation[];
+  annotations: Annotation[];
   setCurrentDocument: (doc: PDFDocument | null) => void;
   addRecentFile: (file: PDFDocument) => Promise<void>;
   removeRecentFile: (fileId: string) => Promise<void>;
   loadRecentFiles: () => Promise<void>;
   addOCRResult: (pageNumber: number, result: OCRResult) => void;
-  addAnnotation: (annotation: PDFAnnotation) => void;
+  setAnnotations: (annotations: Annotation[]) => void;
+  addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (annotationId: string) => void;
   clearAnnotations: () => void;
 }
@@ -24,7 +38,7 @@ export const PDFProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentDocument, setCurrentDocument] = useState<PDFDocument | null>(null);
   const [recentFiles, setRecentFiles] = useState<PDFDocument[]>([]);
   const [ocrResults, setOCRResults] = useState<Map<number, OCRResult>>(new Map());
-  const [annotations, setAnnotations] = useState<PDFAnnotation[]>([]);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
   const loadRecentFiles = useCallback(async () => {
     const files = await storageUtils.getRecentFiles();
@@ -49,7 +63,7 @@ export const PDFProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
-  const addAnnotation = useCallback((annotation: PDFAnnotation) => {
+  const addAnnotation = useCallback((annotation: Annotation) => {
     setAnnotations(prev => [...prev, annotation]);
   }, []);
 
@@ -73,6 +87,7 @@ export const PDFProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeRecentFile,
         loadRecentFiles,
         addOCRResult,
+        setAnnotations,
         addAnnotation,
         removeAnnotation,
         clearAnnotations,

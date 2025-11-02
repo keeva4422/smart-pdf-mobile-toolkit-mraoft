@@ -1,17 +1,18 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PDFDocument } from '@/types/pdf';
+import { PDFDocument, OCRResult } from '@/types/pdf';
 
-const STORAGE_KEYS = {
+const KEYS = {
   RECENT_FILES: '@smartpdf_recent_files',
-  SETTINGS: '@smartpdf_settings',
   OCR_CACHE: '@smartpdf_ocr_cache',
+  SETTINGS: '@smartpdf_settings',
 };
 
 export const storageUtils = {
+  // Recent Files
   async getRecentFiles(): Promise<PDFDocument[]> {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FILES);
+      const data = await AsyncStorage.getItem(KEYS.RECENT_FILES);
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Error getting recent files:', error);
@@ -21,19 +22,10 @@ export const storageUtils = {
 
   async addRecentFile(file: PDFDocument): Promise<void> {
     try {
-      const recentFiles = await this.getRecentFiles();
-      const existingIndex = recentFiles.findIndex(f => f.id === file.id);
-      
-      if (existingIndex !== -1) {
-        recentFiles.splice(existingIndex, 1);
-      }
-      
-      recentFiles.unshift({ ...file, lastOpened: Date.now() });
-      
-      // Keep only last 20 files
-      const trimmedFiles = recentFiles.slice(0, 20);
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.RECENT_FILES, JSON.stringify(trimmedFiles));
+      const files = await this.getRecentFiles();
+      const filtered = files.filter(f => f.id !== file.id);
+      const updated = [file, ...filtered].slice(0, 10); // Keep only 10 most recent
+      await AsyncStorage.setItem(KEYS.RECENT_FILES, JSON.stringify(updated));
     } catch (error) {
       console.error('Error adding recent file:', error);
     }
@@ -41,9 +33,9 @@ export const storageUtils = {
 
   async removeRecentFile(fileId: string): Promise<void> {
     try {
-      const recentFiles = await this.getRecentFiles();
-      const filtered = recentFiles.filter(f => f.id !== fileId);
-      await AsyncStorage.setItem(STORAGE_KEYS.RECENT_FILES, JSON.stringify(filtered));
+      const files = await this.getRecentFiles();
+      const filtered = files.filter(f => f.id !== fileId);
+      await AsyncStorage.setItem(KEYS.RECENT_FILES, JSON.stringify(filtered));
     } catch (error) {
       console.error('Error removing recent file:', error);
     }
@@ -51,54 +43,57 @@ export const storageUtils = {
 
   async clearRecentFiles(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.RECENT_FILES);
+      await AsyncStorage.removeItem(KEYS.RECENT_FILES);
     } catch (error) {
       console.error('Error clearing recent files:', error);
     }
   },
 
+  // OCR Cache
+  async getOCRResults(documentId: string): Promise<OCRResult[] | null> {
+    try {
+      const data = await AsyncStorage.getItem(`${KEYS.OCR_CACHE}_${documentId}`);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error getting OCR results:', error);
+      return null;
+    }
+  },
+
+  async saveOCRResults(documentId: string, results: OCRResult[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(`${KEYS.OCR_CACHE}_${documentId}`, JSON.stringify(results));
+    } catch (error) {
+      console.error('Error saving OCR results:', error);
+    }
+  },
+
+  async clearCache(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter(key => key.startsWith(KEYS.OCR_CACHE));
+      await AsyncStorage.multiRemove(cacheKeys);
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+  },
+
+  // Settings
   async getSettings(): Promise<any> {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return data ? JSON.parse(data) : {
-        darkMode: false,
-        autoOCR: false,
-        ocrLanguage: 'eng',
-      };
+      const data = await AsyncStorage.getItem(KEYS.SETTINGS);
+      return data ? JSON.parse(data) : null;
     } catch (error) {
       console.error('Error getting settings:', error);
-      return {
-        darkMode: false,
-        autoOCR: false,
-        ocrLanguage: 'eng',
-      };
-    }
-  },
-
-  async updateSettings(settings: any): Promise<void> {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-    } catch (error) {
-      console.error('Error updating settings:', error);
-    }
-  },
-
-  async cacheOCRResult(documentId: string, pageNumber: number, text: string): Promise<void> {
-    try {
-      const cacheKey = `${STORAGE_KEYS.OCR_CACHE}_${documentId}_${pageNumber}`;
-      await AsyncStorage.setItem(cacheKey, text);
-    } catch (error) {
-      console.error('Error caching OCR result:', error);
-    }
-  },
-
-  async getCachedOCRResult(documentId: string, pageNumber: number): Promise<string | null> {
-    try {
-      const cacheKey = `${STORAGE_KEYS.OCR_CACHE}_${documentId}_${pageNumber}`;
-      return await AsyncStorage.getItem(cacheKey);
-    } catch (error) {
-      console.error('Error getting cached OCR result:', error);
       return null;
+    }
+  },
+
+  async saveSettings(settings: any): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    } catch (error) {
+      console.error('Error saving settings:', error);
     }
   },
 };
