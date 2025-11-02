@@ -5,13 +5,15 @@ import { Stack, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { usePDF } from '@/contexts/PDFContext';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function SummarizeScreen() {
   const router = useRouter();
   const { currentDocument, ocrResults } = usePDF();
   const [processing, setProcessing] = useState(false);
   const [summary, setSummary] = useState('');
-  const [pageRange, setPageRange] = useState({ start: 1, end: 1 });
+  const [provider, setProvider] = useState<'openrouter' | 'gemini'>('openrouter');
+  const [error, setError] = useState('');
 
   if (!currentDocument) {
     router.replace('/(tabs)/(home)');
@@ -20,25 +22,45 @@ export default function SummarizeScreen() {
 
   const generateSummary = async () => {
     setProcessing(true);
+    setError('');
     
-    // Simulate AI summarization
-    setTimeout(() => {
-      const mockSummary = `This document "${currentDocument.name}" contains important information across multiple pages. 
-
-Key Points:
-- The document discusses various topics related to the subject matter
-- Important findings and conclusions are presented
-- Recommendations and next steps are outlined
-
-Summary:
-The content provides a comprehensive overview of the topic, with detailed analysis and supporting evidence. The document is well-structured and presents information in a clear, logical manner.
-
-This is a demonstration summary. In the full version, this would use AI to generate actual summaries from the document text.`;
+    try {
+      // Get text from OCR results or use placeholder
+      let documentText = '';
       
-      setSummary(mockSummary);
-      setProcessing(false);
+      if (ocrResults && ocrResults.length > 0) {
+        documentText = ocrResults.join('\n\n');
+      } else {
+        documentText = `Document: ${currentDocument.name}\n\nThis is a PDF document that needs to be processed with OCR first to extract text for summarization. Please run OCR on this document before generating a summary.`;
+      }
+
+      // Call the Supabase Edge Function
+      const { data, error: functionError } = await supabase.functions.invoke('summarize-pdf', {
+        body: {
+          text: documentText,
+          provider: provider,
+          maxLength: 10000, // Limit text length to avoid token limits
+        },
+      });
+
+      if (functionError) {
+        throw functionError;
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setSummary(data.summary);
       Alert.alert('Success', 'Summary generated successfully!');
-    }, 2000);
+    } catch (err: any) {
+      console.error('Error generating summary:', err);
+      const errorMessage = err.message || 'Failed to generate summary. Please try again.';
+      setError(errorMessage);
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleExportSummary = () => {
@@ -97,21 +119,59 @@ This is a demonstration summary. In the full version, this would use AI to gener
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Options</Text>
+            <Text style={styles.sectionTitle}>AI Provider</Text>
             <View style={styles.optionCard}>
-              <Text style={styles.optionLabel}>Summarize:</Text>
               <View style={styles.optionButtons}>
-                <Pressable style={[styles.optionButton, styles.optionButtonActive]}>
-                  <Text style={[styles.optionButtonText, styles.optionButtonTextActive]}>
-                    Full Document
+                <Pressable 
+                  style={[styles.optionButton, provider === 'openrouter' && styles.optionButtonActive]}
+                  onPress={() => setProvider('openrouter')}
+                >
+                  <IconSymbol 
+                    name="cpu" 
+                    size={20} 
+                    color={provider === 'openrouter' ? colors.primary : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.optionButtonText, 
+                    provider === 'openrouter' && styles.optionButtonTextActive
+                  ]}>
+                    OpenRouter
                   </Text>
                 </Pressable>
-                <Pressable style={styles.optionButton}>
-                  <Text style={styles.optionButtonText}>Selected Pages</Text>
+                <Pressable 
+                  style={[styles.optionButton, provider === 'gemini' && styles.optionButtonActive]}
+                  onPress={() => setProvider('gemini')}
+                >
+                  <IconSymbol 
+                    name="sparkles" 
+                    size={20} 
+                    color={provider === 'gemini' ? colors.primary : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.optionButtonText, 
+                    provider === 'gemini' && styles.optionButtonTextActive
+                  ]}>
+                    Gemini
+                  </Text>
                 </Pressable>
               </View>
             </View>
           </View>
+
+          {!ocrResults || ocrResults.length === 0 ? (
+            <View style={styles.warningCard}>
+              <IconSymbol name="exclamationmark.triangle.fill" size={24} color={colors.warning} />
+              <Text style={styles.warningText}>
+                No text extracted yet. Run OCR first to extract text from your PDF for better summarization results.
+              </Text>
+              <Pressable
+                style={[buttonStyles.accent, styles.ocrButton]}
+                onPress={() => router.push('/ocr')}
+              >
+                <Text style={commonStyles.buttonText}>Run OCR</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {!processing && !summary && (
             <Pressable
@@ -126,8 +186,15 @@ This is a demonstration summary. In the full version, this would use AI to gener
           {processing && (
             <View style={styles.progressCard}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.progressText}>Generating summary...</Text>
+              <Text style={styles.progressText}>Generating summary with {provider === 'openrouter' ? 'OpenRouter' : 'Gemini'}...</Text>
               <Text style={styles.progressSubtext}>This may take a moment</Text>
+            </View>
+          )}
+
+          {error && (
+            <View style={styles.errorCard}>
+              <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
@@ -168,9 +235,9 @@ This is a demonstration summary. In the full version, this would use AI to gener
           )}
 
           <View style={styles.featureNote}>
-            <IconSymbol name="info.circle" size={20} color={colors.accent} />
+            <IconSymbol name="info.circle" size={20} color={colors.success} />
             <Text style={styles.featureNoteText}>
-              This demo uses simulated AI. The full version will integrate with ApyHub API or local summarization models for accurate results.
+              AI summarization is now powered by {provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini'} API for accurate, intelligent summaries.
             </Text>
           </View>
         </ScrollView>
@@ -241,24 +308,21 @@ const styles = StyleSheet.create({
     ...commonStyles.card,
     marginHorizontal: 0,
   },
-  optionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
-  },
   optionButtons: {
     flexDirection: 'row',
     gap: 8,
   },
   optionButton: {
     flex: 1,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: colors.border,
-    alignItems: 'center',
   },
   optionButtonActive: {
     borderColor: colors.primary,
@@ -271,6 +335,26 @@ const styles = StyleSheet.create({
   },
   optionButtonTextActive: {
     color: colors.primary,
+  },
+  warningCard: {
+    ...commonStyles.card,
+    alignItems: 'center',
+    marginHorizontal: 0,
+    marginBottom: 20,
+    backgroundColor: colors.warning + '15',
+    borderWidth: 1,
+    borderColor: colors.warning + '40',
+  },
+  warningText: {
+    fontSize: 14,
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginVertical: 12,
+  },
+  ocrButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
   },
   actionButton: {
     flexDirection: 'row',
@@ -298,6 +382,23 @@ const styles = StyleSheet.create({
   progressSubtext: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  errorCard: {
+    ...commonStyles.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 0,
+    marginVertical: 20,
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error + '40',
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
   },
   resultSection: {
     marginTop: 8,
@@ -353,7 +454,7 @@ const styles = StyleSheet.create({
   featureNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.accent + '20',
+    backgroundColor: colors.success + '20',
     borderRadius: 12,
     padding: 16,
     marginTop: 20,

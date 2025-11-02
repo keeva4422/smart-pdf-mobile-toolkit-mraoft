@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const { signUp } = useAuth();
   const router = useRouter();
 
@@ -48,12 +50,14 @@ export default function SignupScreen() {
     setLoading(false);
 
     if (!error) {
-      // User will be shown an alert to verify email
-      // They can navigate back to login
-      setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 2000);
+      // Show success modal with email verification instructions
+      setShowSuccessModal(true);
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    router.replace('/(auth)/login');
   };
 
   return (
@@ -171,6 +175,48 @@ export default function SignupScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <IconSymbol name="envelope.badge.fill" size={64} color={colors.primary} />
+            </View>
+            
+            <Text style={styles.modalTitle}>Check Your Email!</Text>
+            
+            <Text style={styles.modalText}>
+              We&apos;ve sent a confirmation link to:
+            </Text>
+            
+            <Text style={styles.modalEmail}>{email}</Text>
+            
+            <Text style={styles.modalText}>
+              Please click the link in the email to verify your account and complete your registration.
+            </Text>
+            
+            <View style={styles.modalNote}>
+              <IconSymbol name="info.circle.fill" size={20} color={colors.accent} />
+              <Text style={styles.modalNoteText}>
+                Didn&apos;t receive the email? Check your spam folder or try signing up again.
+              </Text>
+            </View>
+            
+            <Pressable
+              style={[buttonStyles.primary, styles.modalButton]}
+              onPress={handleCloseModal}
+            >
+              <Text style={commonStyles.buttonText}>Got It!</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -215,7 +261,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surface || colors.card,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
@@ -254,5 +300,65 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    boxShadow: '0px 10px 40px rgba(0, 0, 0, 0.2)',
+    elevation: 10,
+  },
+  modalIconContainer: {
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  modalEmail: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.accent + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  modalNoteText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginLeft: 12,
+    flex: 1,
+  },
+  modalButton: {
+    width: '100%',
   },
 });

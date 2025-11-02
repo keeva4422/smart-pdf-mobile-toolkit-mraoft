@@ -9,11 +9,13 @@ export const colors = {
   secondary: '#E91E63',
   accent: '#03A9F4',
   card: '#FFFFFF',
+  surface: '#FFFFFF',
   highlight: '#FFEB3B',
   error: '#F44336',
   success: '#4CAF50',
   warning: '#FF9800',
   border: '#E0E0E0',
+  buttonText: '#FFFFFF',
 };
 
 export const buttonStyles = StyleSheet.create({
@@ -24,6 +26,11 @@ export const buttonStyles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  primaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   secondary: {
     backgroundColor: colors.secondary,
