@@ -12,7 +12,7 @@ export default function AuthLayout() {
       // User is authenticated, redirect to home
       router.replace('/(tabs)/(home)/');
     }
-  }, [session, loading]);
+  }, [session, loading, router]);
 
   return (
     <Stack

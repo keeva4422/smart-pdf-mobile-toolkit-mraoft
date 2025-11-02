@@ -41,7 +41,7 @@ export default function HomeScreen() {
   useEffect(() => {
     loadRecentFiles();
     loadUserDocuments();
-  }, []);
+  }, [loadRecentFiles, loadUserDocuments]);
 
   const handleOpenPDF = async () => {
     try {

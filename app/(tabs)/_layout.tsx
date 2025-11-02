@@ -15,7 +15,7 @@ export default function TabLayout() {
       // User is not authenticated, redirect to login
       router.replace('/(auth)/login');
     }
-  }, [session, loading]);
+  }, [session, loading, router]);
 
   // Define the tabs configuration
   const tabs: TabBarItem[] = [

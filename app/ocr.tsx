@@ -21,7 +21,7 @@ export default function OCRScreen() {
     if (!currentDocument) {
       router.replace('/(tabs)/(home)');
     }
-  }, [currentDocument]);
+  }, [currentDocument, router]);
 
   if (!currentDocument) {
     return null;
@@ -112,106 +112,116 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
   };
 
   return (
-    <>
+    <View style={commonStyles.container}>
       <Stack.Screen
         options={{
           title: 'OCR Text Extraction',
           headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable
+              style={styles.backButton}
+              onPress={() => router.push('/(tabs)/(home)/')}
+            >
+              <IconSymbol name="house.fill" size={22} color={colors.primary} />
+            </Pressable>
+          ),
         }}
       />
 
-      <View style={commonStyles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.infoCard}>
-            <IconSymbol name="text.viewfinder" size={48} color={colors.primary} />
-            <Text style={styles.infoTitle}>Optical Character Recognition</Text>
-            <Text style={styles.infoText}>
-              Extract text from scanned documents and images in your PDF.
-            </Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.infoCard}>
+          <IconSymbol name="text.viewfinder" size={48} color={colors.primary} />
+          <Text style={styles.infoTitle}>Optical Character Recognition</Text>
+          <Text style={styles.infoText}>
+            Extract text from scanned documents and images in your PDF.
+          </Text>
+        </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Document</Text>
-            <View style={styles.documentCard}>
-              <IconSymbol name="doc.fill" size={32} color={colors.primary} />
-              <View style={styles.documentInfo}>
-                <Text style={styles.documentName} numberOfLines={1}>
-                  {currentDocument.name}
-                </Text>
-                <Text style={styles.documentMeta}>
-                  {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
-                </Text>
-              </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Document</Text>
+          <View style={styles.documentCard}>
+            <IconSymbol name="doc.fill" size={32} color={colors.primary} />
+            <View style={styles.documentInfo}>
+              <Text style={styles.documentName} numberOfLines={1}>
+                {currentDocument.name}
+              </Text>
+              <Text style={styles.documentMeta}>
+                {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
+              </Text>
             </View>
           </View>
+        </View>
 
-          {!processing && !extractedText && (
-            <Pressable
-              style={[buttonStyles.primary, styles.actionButton]}
-              onPress={performOCR}
-            >
-              <IconSymbol name="play.fill" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-              <Text style={commonStyles.buttonText}>Start OCR</Text>
-            </Pressable>
-          )}
+        {!processing && !extractedText && (
+          <Pressable
+            style={[buttonStyles.primary, styles.actionButton]}
+            onPress={performOCR}
+          >
+            <IconSymbol name="play.fill" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+            <Text style={commonStyles.buttonText}>Start OCR</Text>
+          </Pressable>
+        )}
 
-          {processing && (
-            <View style={styles.progressCard}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.progressText}>Processing document...</Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-              </View>
-              <Text style={styles.progressPercentage}>{Math.round(progress * 100)}%</Text>
+        {processing && (
+          <View style={styles.progressCard}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.progressText}>Processing document...</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
-          )}
+            <Text style={styles.progressPercentage}>{Math.round(progress * 100)}%</Text>
+          </View>
+        )}
 
-          {error && (
-            <View style={styles.errorCard}>
-              <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
+        {error && (
+          <View style={styles.errorCard}>
+            <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
 
-          {extractedText && (
-            <View style={styles.resultSection}>
-              <View style={styles.resultHeader}>
-                <Text style={styles.sectionTitle}>Extracted Text</Text>
-                <Pressable onPress={copyToClipboard} style={styles.copyButton}>
-                  <IconSymbol name="doc.on.doc" size={20} color={colors.primary} />
-                  <Text style={styles.copyButtonText}>Copy</Text>
-                </Pressable>
-              </View>
-              
-              <View style={styles.textCard}>
-                <ScrollView style={styles.textScroll} nestedScrollEnabled>
-                  <Text style={styles.extractedText}>{extractedText}</Text>
-                </ScrollView>
-              </View>
-
-              <Pressable
-                style={[buttonStyles.accent, styles.actionButton]}
-                onPress={performOCR}
-              >
-                <IconSymbol name="arrow.clockwise" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-                <Text style={commonStyles.buttonText}>Re-process</Text>
+        {extractedText && (
+          <View style={styles.resultSection}>
+            <View style={styles.resultHeader}>
+              <Text style={styles.sectionTitle}>Extracted Text</Text>
+              <Pressable onPress={copyToClipboard} style={styles.copyButton}>
+                <IconSymbol name="doc.on.doc" size={20} color={colors.primary} />
+                <Text style={styles.copyButtonText}>Copy</Text>
               </Pressable>
             </View>
-          )}
+            
+            <View style={styles.textCard}>
+              <ScrollView style={styles.textScroll} nestedScrollEnabled>
+                <Text style={styles.extractedText}>{extractedText}</Text>
+              </ScrollView>
+            </View>
 
-          <View style={styles.featureNote}>
-            <IconSymbol name="info.circle" size={20} color={colors.primary} />
-            <Text style={styles.featureNoteText}>
-              OCR works best with clear, high-resolution scanned documents. The extracted text can be used for summarization and search.
-            </Text>
+            <Pressable
+              style={[buttonStyles.accent, styles.actionButton]}
+              onPress={performOCR}
+            >
+              <IconSymbol name="arrow.clockwise" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+              <Text style={commonStyles.buttonText}>Re-process</Text>
+            </Pressable>
           </View>
-        </ScrollView>
-      </View>
-    </>
+        )}
+
+        <View style={styles.featureNote}>
+          <IconSymbol name="info.circle" size={20} color={colors.primary} />
+          <Text style={styles.featureNoteText}>
+            OCR works best with clear, high-resolution scanned documents. The extracted text can be used for summarization and search.
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    marginLeft: 12,
+    padding: 8,
+  },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,

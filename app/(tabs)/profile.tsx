@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { IconSymbol } from "@/components/IconSymbol";
 import { colors, commonStyles } from "@/styles/commonStyles";
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Platform } from "react-native";
-import { supabase } from "@/app/integrations/supabase/client";
 import { storageUtils } from "@/utils/storage";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/app/integrations/supabase/client";
 import { Stack, useRouter } from "expo-router";
 
 interface SettingItem {
@@ -18,14 +18,15 @@ interface SettingItem {
 }
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
+  const router = useRouter();
   const [settings, setSettings] = useState({
     notifications: true,
     autoSave: true,
     darkMode: false,
+    offlineMode: true,
   });
+  const [profile, setProfile] = useState<any>(null);
 
   const loadProfile = useCallback(async () => {
     if (!user) return;
@@ -37,40 +38,21 @@ export default function SettingsScreen() {
         .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error loading profile:', error);
         return;
       }
 
-      if (data) {
-        setProfile(data);
-      } else {
-        // Create profile if it doesn't exist
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email,
-            full_name: user.user_metadata?.full_name || '',
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-        } else {
-          setProfile(newProfile);
-        }
-      }
+      setProfile(data);
     } catch (error) {
       console.error('Exception loading profile:', error);
     }
   }, [user]);
 
   useEffect(() => {
-    loadProfile();
     loadSettings();
-  }, []);
+    loadProfile();
+  }, [loadProfile]);
 
   const loadSettings = async () => {
     try {
@@ -92,7 +74,7 @@ export default function SettingsScreen() {
   const handleClearCache = async () => {
     Alert.alert(
       'Clear Cache',
-      'This will clear all cached OCR results. Are you sure?',
+      'This will remove all cached OCR results and temporary files. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -115,7 +97,7 @@ export default function SettingsScreen() {
   const handleClearRecent = async () => {
     Alert.alert(
       'Clear Recent Files',
-      'This will remove all recent files from the list. Are you sure?',
+      'This will remove all recent files from the list. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -153,50 +135,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const settingsItems: SettingItem[] = [
-    {
-      id: 'notifications',
-      title: 'Notifications',
-      icon: 'bell.fill',
-      type: 'toggle',
-      value: settings.notifications,
-      onPress: () => updateSetting('notifications', !settings.notifications),
-    },
-    {
-      id: 'autoSave',
-      title: 'Auto-save Annotations',
-      icon: 'arrow.down.doc.fill',
-      type: 'toggle',
-      value: settings.autoSave,
-      onPress: () => updateSetting('autoSave', !settings.autoSave),
-    },
-    {
-      id: 'darkMode',
-      title: 'Dark Mode',
-      icon: 'moon.fill',
-      type: 'toggle',
-      value: settings.darkMode,
-      onPress: () => updateSetting('darkMode', !settings.darkMode),
-    },
-  ];
-
-  const actionItems: SettingItem[] = [
-    {
-      id: 'clearCache',
-      title: 'Clear Cache',
-      icon: 'trash.fill',
-      type: 'action',
-      onPress: handleClearCache,
-    },
-    {
-      id: 'clearRecent',
-      title: 'Clear Recent Files',
-      icon: 'clock.arrow.circlepath',
-      type: 'action',
-      onPress: handleClearRecent,
-    },
-  ];
-
   const handleSettingPress = (item: SettingItem) => {
     if (item.onPress) {
       item.onPress();
@@ -217,9 +155,9 @@ export default function SettingsScreen() {
         {item.type === 'toggle' && (
           <Switch
             value={item.value}
-            onValueChange={() => handleSettingPress(item)}
+            onValueChange={(value) => updateSetting(item.id, value)}
             trackColor={{ false: colors.border, true: colors.primary }}
-            thumbColor={colors.card}
+            thumbColor={item.value ? colors.buttonText : colors.textSecondary}
           />
         )}
         {item.type === 'navigation' && (
@@ -228,6 +166,61 @@ export default function SettingsScreen() {
       </Pressable>
     );
   };
+
+  const settingsItems: SettingItem[] = [
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      icon: 'bell.fill',
+      type: 'toggle',
+      value: settings.notifications,
+    },
+    {
+      id: 'autoSave',
+      title: 'Auto-save Annotations',
+      icon: 'arrow.down.doc.fill',
+      type: 'toggle',
+      value: settings.autoSave,
+    },
+    {
+      id: 'darkMode',
+      title: 'Dark Mode',
+      icon: 'moon.fill',
+      type: 'toggle',
+      value: settings.darkMode,
+    },
+    {
+      id: 'offlineMode',
+      title: 'Offline Mode',
+      icon: 'wifi.slash',
+      type: 'toggle',
+      value: settings.offlineMode,
+    },
+  ];
+
+  const actionItems: SettingItem[] = [
+    {
+      id: 'clearCache',
+      title: 'Clear Cache',
+      icon: 'trash.fill',
+      type: 'action',
+      onPress: handleClearCache,
+    },
+    {
+      id: 'clearRecent',
+      title: 'Clear Recent Files',
+      icon: 'clock.arrow.circlepath',
+      type: 'action',
+      onPress: handleClearRecent,
+    },
+    {
+      id: 'signOut',
+      title: 'Sign Out',
+      icon: 'arrow.right.square',
+      type: 'action',
+      onPress: handleSignOut,
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -246,19 +239,17 @@ export default function SettingsScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Profile Section */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            <IconSymbol name="person.circle.fill" size={80} color={colors.primary} />
+          <View style={styles.profileAvatar}>
+            <IconSymbol name="person.fill" size={48} color={colors.primary} />
           </View>
-          <Text style={styles.profileName}>
-            {profile?.full_name || user?.email?.split('@')[0] || 'User'}
-          </Text>
+          <Text style={styles.profileName}>{profile?.full_name || 'User'}</Text>
           <Text style={styles.profileEmail}>{user?.email}</Text>
         </View>
 
         {/* Settings Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-          <View style={styles.settingsCard}>
+          <View style={styles.settingsList}>
             {settingsItems.map(renderSettingItem)}
           </View>
         </View>
@@ -266,32 +257,16 @@ export default function SettingsScreen() {
         {/* Actions Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
-          <View style={styles.settingsCard}>
+          <View style={styles.settingsList}>
             {actionItems.map(renderSettingItem)}
           </View>
         </View>
 
         {/* App Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Version</Text>
-              <Text style={styles.infoValue}>1.0.0</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Platform</Text>
-              <Text style={styles.infoValue}>{Platform.OS}</Text>
-            </View>
-          </View>
+        <View style={styles.appInfo}>
+          <Text style={styles.appInfoText}>SmartPDF Toolkit v1.0.0</Text>
+          <Text style={styles.appInfoSubtext}>Made with ❤️ for productivity</Text>
         </View>
-
-        {/* Sign Out Button */}
-        <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-          <IconSymbol name="arrow.right.square" size={20} color={colors.error} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -312,9 +287,15 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     marginBottom: 32,
-    paddingVertical: 20,
+    paddingVertical: 24,
   },
-  avatarContainer: {
+  profileAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.primary + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   profileName: {
@@ -328,20 +309,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
+    paddingHorizontal: 4,
   },
-  settingsCard: {
+  settingsList: {
     backgroundColor: colors.card,
     borderRadius: 12,
     overflow: 'hidden',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
   },
   settingItem: {
     flexDirection: 'row',
@@ -358,51 +338,21 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: 16,
-    fontWeight: '500',
     color: colors.text,
     marginLeft: 12,
   },
-  infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-    elevation: 3,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  appInfo: {
     alignItems: 'center',
-    paddingVertical: 8,
+    marginTop: 24,
+    paddingVertical: 20,
   },
-  infoLabel: {
-    fontSize: 16,
-    fontWeight: '500',
+  appInfoText: {
+    fontSize: 14,
     color: colors.textSecondary,
+    marginBottom: 4,
   },
-  infoValue: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 8,
-  },
-  signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.error + '15',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 16,
-    gap: 8,
-  },
-  signOutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.error,
-    marginLeft: 8,
+  appInfoSubtext: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
 });

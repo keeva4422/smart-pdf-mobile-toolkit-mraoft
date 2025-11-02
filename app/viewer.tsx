@@ -21,7 +21,7 @@ export default function ViewerScreen() {
     if (!currentDocument) {
       router.replace('/(tabs)/(home)');
     }
-  }, [currentDocument]);
+  }, [currentDocument, router]);
 
   if (!currentDocument) {
     return null;

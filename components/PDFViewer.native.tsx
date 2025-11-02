@@ -5,14 +5,14 @@ import Pdf from 'react-native-pdf';
 import { colors } from '@/styles/commonStyles';
 
 interface PDFViewerProps {
-  uri: string;
+  source: { uri: string };
   onLoadComplete?: (numberOfPages: number) => void;
   onPageChanged?: (page: number, numberOfPages: number) => void;
   onError?: (error: any) => void;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({
-  uri,
+  source,
   onLoadComplete,
   onPageChanged,
   onError,
@@ -60,7 +60,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       {!error && (
         <>
           <Pdf
-            source={{ uri }}
+            source={source}
             style={styles.pdf}
             onLoadComplete={handleLoadComplete}
             onPageChanged={handlePageChanged}
