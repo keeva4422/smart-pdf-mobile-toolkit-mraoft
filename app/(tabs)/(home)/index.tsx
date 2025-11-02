@@ -1,22 +1,47 @@
 
 import React, { useEffect, useState } from 'react';
+import { PDFDocument } from '@/types/pdf';
+import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from 'react-native';
+import { usePDF } from '@/contexts/PDFContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Stack, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { IconSymbol } from '@/components/IconSymbol';
 import { RecentFileCard } from '@/components/RecentFileCard';
-import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
-import { usePDF } from '@/contexts/PDFContext';
-import { PDFDocument } from '@/types/pdf';
+import { IconSymbol } from '@/components/IconSymbol';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function HomeScreen() {
+  const { currentDocument, recentFiles, setCurrentDocument, loadRecentFiles, addRecentFile } = usePDF();
+  const { user, signOut } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const router = useRouter();
-  const { recentFiles, loadRecentFiles, addRecentFile, removeRecentFile, setCurrentDocument } = usePDF();
-  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     loadRecentFiles();
+    loadUserDocuments();
   }, []);
+
+  const loadUserDocuments = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('pdf_documents')
+        .select('*')
+        .order('last_opened', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error loading documents:', error);
+        return;
+      }
+
+      console.log('Loaded documents:', data);
+    } catch (error) {
+      console.error('Exception loading documents:', error);
+    }
+  };
 
   const handleOpenPDF = async () => {
     try {
@@ -25,138 +50,165 @@ export default function HomeScreen() {
         copyToCacheDirectory: true,
       });
 
-      console.log('Document picker result:', result);
-
       if (result.canceled) {
-        console.log('Document picker was cancelled');
+        console.log('Document picker cancelled');
         return;
       }
 
-      if (result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const pdfDoc: PDFDocument = {
-          id: Date.now().toString(),
-          name: asset.name,
-          uri: asset.uri,
-          size: asset.size || 0,
-          mimeType: asset.mimeType || 'application/pdf',
-          dateAdded: Date.now(),
-        };
+      const file = result.assets[0];
+      const pdfDoc: PDFDocument = {
+        id: Date.now().toString(),
+        name: file.name,
+        uri: file.uri,
+        size: file.size || 0,
+        pageCount: 0,
+        lastOpened: new Date(),
+      };
 
-        console.log('PDF document created:', pdfDoc);
-        
-        await addRecentFile(pdfDoc);
-        setCurrentDocument(pdfDoc);
-        router.push('/viewer');
+      setCurrentDocument(pdfDoc);
+      await addRecentFile(pdfDoc);
+
+      // Save to Supabase if user is logged in
+      if (user) {
+        try {
+          const { error } = await supabase
+            .from('pdf_documents')
+            .insert({
+              user_id: user.id,
+              name: pdfDoc.name,
+              uri: pdfDoc.uri,
+              size: pdfDoc.size,
+              page_count: pdfDoc.pageCount,
+            });
+
+          if (error) {
+            console.error('Error saving document to Supabase:', error);
+          }
+        } catch (error) {
+          console.error('Exception saving document:', error);
+        }
       }
+
+      router.push('/viewer');
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to open PDF file. Please try again.');
+      Alert.alert('Error', 'Failed to open PDF file');
     }
   };
 
   const handleFilePress = (file: PDFDocument) => {
-    console.log('Opening file:', file.name);
     setCurrentDocument(file);
-    addRecentFile(file);
     router.push('/viewer');
   };
 
-  const handleDeleteFile = (fileId: string) => {
+  const handleDeleteFile = async (fileId: string) => {
     Alert.alert(
       'Delete File',
-      'Remove this file from recent files?',
+      'Are you sure you want to remove this file from recent files?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => removeRecentFile(fileId),
+          onPress: async () => {
+            // Delete from local storage
+            const { removeRecentFile } = usePDF();
+            await removeRecentFile(fileId);
+
+            // Delete from Supabase if user is logged in
+            if (user) {
+              try {
+                const { error } = await supabase
+                  .from('pdf_documents')
+                  .delete()
+                  .eq('id', fileId);
+
+                if (error) {
+                  console.error('Error deleting document from Supabase:', error);
+                }
+              } catch (error) {
+                console.error('Exception deleting document:', error);
+              }
+            }
+
+            loadRecentFiles();
+          },
         },
       ]
     );
   };
 
   const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    Alert.alert('Dark Mode', 'Dark mode toggle is coming soon!');
+    setIsDarkMode(!isDarkMode);
+    // TODO: Implement dark mode toggle
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
   };
 
   return (
-    <>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: 'SmartPDF Toolkit',
-          headerRight: () => (
-            <Pressable onPress={toggleDarkMode} style={styles.headerButton}>
-              <IconSymbol
-                name={darkMode ? 'sun.max.fill' : 'moon.fill'}
-                size={22}
-                color={colors.primary}
-              />
-            </Pressable>
-          ),
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.text,
+          headerShadowVisible: false,
         }}
       />
-      
-      <View style={commonStyles.container}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.heroSection}>
-            <View style={styles.iconCircle}>
-              <IconSymbol name="doc.text.fill" size={48} color={colors.primary} />
-            </View>
-            <Text style={styles.heroTitle}>SmartPDF Toolkit</Text>
-            <Text style={styles.heroSubtitle}>
-              View, scan, edit, and summarize PDFs on your mobile device
-            </Text>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Welcome Section */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeText}>Welcome back!</Text>
+          <Text style={styles.userEmail}>{user?.email}</Text>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Pressable style={[buttonStyles.primary, styles.openButton]} onPress={handleOpenPDF}>
+            <IconSymbol name="plus.circle.fill" size={24} color={colors.buttonText} />
+            <Text style={[buttonStyles.primaryText, styles.openButtonText]}>Open PDF</Text>
+          </Pressable>
+        </View>
+
+        {/* Recent Files */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Files</Text>
+            {recentFiles.length > 0 && (
+              <Pressable onPress={loadRecentFiles}>
+                <IconSymbol name="arrow.clockwise" size={20} color={colors.primary} />
+              </Pressable>
+            )}
           </View>
 
-          <View style={styles.actionSection}>
-            <Pressable
-              style={[buttonStyles.primary, styles.primaryButton]}
-              onPress={handleOpenPDF}
-            >
-              <IconSymbol name="doc.badge.plus" size={24} color="#FFFFFF" style={styles.buttonIcon} />
-              <Text style={styles.primaryButtonText}>Open PDF</Text>
-            </Pressable>
-
-            <View style={styles.featureGrid}>
-              <View style={styles.featureCard}>
-                <IconSymbol name="doc.text.viewfinder" size={32} color={colors.accent} />
-                <Text style={styles.featureTitle}>OCR</Text>
-                <Text style={styles.featureDescription}>Extract text from images</Text>
-              </View>
-
-              <View style={styles.featureCard}>
-                <IconSymbol name="pencil.tip.crop.circle" size={32} color={colors.secondary} />
-                <Text style={styles.featureTitle}>Edit</Text>
-                <Text style={styles.featureDescription}>Annotate & highlight</Text>
-              </View>
-
-              <View style={styles.featureCard}>
-                <IconSymbol name="doc.text.magnifyingglass" size={32} color={colors.primary} />
-                <Text style={styles.featureTitle}>Summarize</Text>
-                <Text style={styles.featureDescription}>AI-powered summaries</Text>
-              </View>
-
-              <View style={styles.featureCard}>
-                <IconSymbol name="square.and.arrow.up" size={32} color={colors.success} />
-                <Text style={styles.featureTitle}>Export</Text>
-                <Text style={styles.featureDescription}>Share & save</Text>
-              </View>
+          {recentFiles.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol name="document" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No recent files</Text>
+              <Text style={styles.emptyStateSubtext}>Open a PDF to get started</Text>
             </View>
-          </View>
-
-          {recentFiles.length > 0 && (
-            <View style={styles.recentSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent Files</Text>
-                <Text style={styles.sectionCount}>{recentFiles.length}</Text>
-              </View>
-              
+          ) : (
+            <View style={styles.filesList}>
               {recentFiles.map((file) => (
                 <RecentFileCard
                   key={file.id}
@@ -167,91 +219,145 @@ export default function HomeScreen() {
               ))}
             </View>
           )}
+        </View>
 
-          {recentFiles.length === 0 && (
-            <View style={styles.emptyState}>
-              <IconSymbol name="doc.text" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No recent files</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Open a PDF to get started
+        {/* Features Overview */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Features</Text>
+          <View style={styles.featuresGrid}>
+            <View style={styles.featureCard}>
+              <IconSymbol name="eye.fill" size={32} color={colors.primary} />
+              <Text style={styles.featureTitle}>View PDFs</Text>
+              <Text style={styles.featureDescription}>
+                Open and navigate through PDF documents
               </Text>
             </View>
-          )}
-        </ScrollView>
-      </View>
-    </>
+
+            <View style={styles.featureCard}>
+              <IconSymbol name="text.viewfinder" size={32} color={colors.primary} />
+              <Text style={styles.featureTitle}>OCR</Text>
+              <Text style={styles.featureDescription}>
+                Extract text from scanned documents
+              </Text>
+            </View>
+
+            <View style={styles.featureCard}>
+              <IconSymbol name="pencil" size={32} color={colors.primary} />
+              <Text style={styles.featureTitle}>Edit</Text>
+              <Text style={styles.featureDescription}>
+                Annotate and highlight PDFs
+              </Text>
+            </View>
+
+            <View style={styles.featureCard}>
+              <IconSymbol name="doc.text.fill" size={32} color={colors.primary} />
+              <Text style={styles.featureTitle}>Summarize</Text>
+              <Text style={styles.featureDescription}>
+                AI-powered document summaries
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Sign Out Button */}
+        <View style={styles.section}>
+          <Pressable style={[buttonStyles.secondary, styles.signOutButton]} onPress={handleSignOut}>
+            <IconSymbol name="arrow.right.square" size={20} color={colors.primary} />
+            <Text style={[buttonStyles.secondaryText, styles.signOutText]}>Sign Out</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingBottom: Platform.OS === 'ios' ? 20 : 100,
+    padding: 20,
+    paddingBottom: 100,
   },
-  heroSection: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
+  welcomeSection: {
+    marginBottom: 24,
   },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.primary + '20',
-    justifyContent: 'center',
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
   },
-  heroSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  actionSection: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  primaryButton: {
+  openButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    gap: 12,
   },
-  buttonIcon: {
-    marginRight: 8,
+  openButtonText: {
+    marginLeft: 8,
   },
-  primaryButtonText: {
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+  },
+  emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.text,
+    marginTop: 16,
   },
-  featureGrid: {
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  filesList: {
+    gap: 12,
+  },
+  featuresGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   featureCard: {
-    width: '48%',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
   },
   featureTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 4,
   },
   featureDescription: {
@@ -259,48 +365,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  recentSection: {
-    marginTop: 8,
-  },
-  sectionHeader: {
+  signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    justifyContent: 'center',
+    gap: 8,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  sectionCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    backgroundColor: colors.primary + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 20,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  headerButton: {
-    padding: 8,
-    marginRight: 8,
+  signOutText: {
+    marginLeft: 8,
   },
 });

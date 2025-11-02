@@ -1,10 +1,22 @@
-import React from 'react';
+
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
+  const { session, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !session) {
+      // User is not authenticated, redirect to login
+      router.replace('/(auth)/login');
+    }
+  }, [session, loading]);
+
   // Define the tabs configuration
   const tabs: TabBarItem[] = [
     {

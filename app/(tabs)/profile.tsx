@@ -1,327 +1,377 @@
 
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Platform } from "react-native";
-import { Stack } from "expo-router";
 import { IconSymbol } from "@/components/IconSymbol";
-import { colors, commonStyles } from "@/styles/commonStyles";
 import { storageUtils } from "@/utils/storage";
+import { colors, commonStyles } from "@/styles/commonStyles";
+import React, { useState, useEffect } from "react";
+import { Stack, useRouter } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Platform } from "react-native";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/app/integrations/supabase/client";
+
+interface SettingItem {
+  id: string;
+  title: string;
+  icon: string;
+  type: 'toggle' | 'navigation' | 'action';
+  value?: boolean;
+  onPress?: () => void;
+}
 
 export default function SettingsScreen() {
-  const [settings, setSettings] = useState({
-    darkMode: false,
-    autoOCR: false,
-    ocrLanguage: 'eng',
-  });
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+  const [darkMode, setDarkMode] = useState(false);
+  const [autoOCR, setAutoOCR] = useState(true);
+  const [highQualityOCR, setHighQualityOCR] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     loadSettings();
+    loadProfile();
   }, []);
 
+  const loadProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading profile:', error);
+        return;
+      }
+
+      setProfile(data);
+    } catch (error) {
+      console.error('Exception loading profile:', error);
+    }
+  };
+
   const loadSettings = async () => {
-    const savedSettings = await storageUtils.getSettings();
-    setSettings(savedSettings);
+    try {
+      const settings = await storageUtils.getSettings();
+      setDarkMode(settings.darkMode || false);
+      setAutoOCR(settings.autoOCR !== false);
+      setHighQualityOCR(settings.highQualityOCR || false);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
   };
 
   const updateSetting = async (key: string, value: any) => {
-    const newSettings = { ...settings, [key]: value };
-    setSettings(newSettings);
-    await storageUtils.updateSettings(newSettings);
+    try {
+      await storageUtils.saveSetting(key, value);
+      console.log(`Setting ${key} updated to ${value}`);
+    } catch (error) {
+      console.error('Error updating setting:', error);
+    }
   };
 
-  const handleClearCache = async () => {
+  const handleClearCache = () => {
     Alert.alert(
       'Clear Cache',
-      'This will remove all cached OCR results. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Success', 'Cache cleared successfully!');
-          },
-        },
-      ]
-    );
-  };
-
-  const handleClearRecent = async () => {
-    Alert.alert(
-      'Clear Recent Files',
-      'This will remove all recent files from the list. Continue?',
+      'This will clear all cached OCR results. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            await storageUtils.clearRecentFiles();
-            Alert.alert('Success', 'Recent files cleared!');
+            try {
+              await storageUtils.clearCache();
+              Alert.alert('Success', 'Cache cleared successfully');
+            } catch (error) {
+              console.error('Error clearing cache:', error);
+              Alert.alert('Error', 'Failed to clear cache');
+            }
           },
         },
       ]
     );
   };
 
-  const settingsSections = [
-    {
-      title: 'Appearance',
-      items: [
+  const handleClearRecent = () => {
+    Alert.alert(
+      'Clear Recent Files',
+      'This will remove all recent files from the list. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
         {
-          id: 'darkMode',
-          label: 'Dark Mode',
-          icon: 'moon.fill',
-          type: 'toggle',
-          value: settings.darkMode,
-          description: 'Coming soon',
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageUtils.clearRecentFiles();
+              Alert.alert('Success', 'Recent files cleared successfully');
+            } catch (error) {
+              console.error('Error clearing recent files:', error);
+              Alert.alert('Error', 'Failed to clear recent files');
+            }
+          },
         },
-      ],
-    },
-    {
-      title: 'OCR Settings',
-      items: [
-        {
-          id: 'autoOCR',
-          label: 'Auto OCR',
-          icon: 'doc.text.viewfinder',
-          type: 'toggle',
-          value: settings.autoOCR,
-          description: 'Automatically run OCR on new PDFs',
-        },
-        {
-          id: 'ocrLanguage',
-          label: 'OCR Language',
-          icon: 'globe',
-          type: 'option',
-          value: settings.ocrLanguage,
-          description: 'English',
-        },
-      ],
-    },
-    {
-      title: 'Storage',
-      items: [
-        {
-          id: 'clearCache',
-          label: 'Clear Cache',
-          icon: 'trash',
-          type: 'action',
-          description: 'Remove cached OCR results',
-        },
-        {
-          id: 'clearRecent',
-          label: 'Clear Recent Files',
-          icon: 'clock.arrow.circlepath',
-          type: 'action',
-          description: 'Remove recent files list',
-        },
-      ],
-    },
-    {
-      title: 'About',
-      items: [
-        {
-          id: 'version',
-          label: 'Version',
-          icon: 'info.circle',
-          type: 'info',
-          value: '1.0.0',
-          description: 'SmartPDF Toolkit',
-        },
-      ],
-    },
-  ];
+      ]
+    );
+  };
 
-  const handleSettingPress = (item: any) => {
-    if (item.type === 'action') {
-      if (item.id === 'clearCache') {
-        handleClearCache();
-      } else if (item.id === 'clearRecent') {
-        handleClearRecent();
-      }
-    } else if (item.type === 'option') {
-      Alert.alert('Coming Soon', 'Language selection will be available in a future update.');
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSettingPress = (item: SettingItem) => {
+    if (item.onPress) {
+      item.onPress();
     }
   };
 
+  const appearanceSettings: SettingItem[] = [
+    {
+      id: 'darkMode',
+      title: 'Dark Mode',
+      icon: 'moon.fill',
+      type: 'toggle',
+      value: darkMode,
+      onPress: () => {
+        const newValue = !darkMode;
+        setDarkMode(newValue);
+        updateSetting('darkMode', newValue);
+      },
+    },
+  ];
+
+  const ocrSettings: SettingItem[] = [
+    {
+      id: 'autoOCR',
+      title: 'Auto OCR',
+      icon: 'text.viewfinder',
+      type: 'toggle',
+      value: autoOCR,
+      onPress: () => {
+        const newValue = !autoOCR;
+        setAutoOCR(newValue);
+        updateSetting('autoOCR', newValue);
+      },
+    },
+    {
+      id: 'highQualityOCR',
+      title: 'High Quality OCR',
+      icon: 'sparkles',
+      type: 'toggle',
+      value: highQualityOCR,
+      onPress: () => {
+        const newValue = !highQualityOCR;
+        setHighQualityOCR(newValue);
+        updateSetting('highQualityOCR', newValue);
+      },
+    },
+  ];
+
+  const storageSettings: SettingItem[] = [
+    {
+      id: 'clearCache',
+      title: 'Clear Cache',
+      icon: 'trash',
+      type: 'action',
+      onPress: handleClearCache,
+    },
+    {
+      id: 'clearRecent',
+      title: 'Clear Recent Files',
+      icon: 'trash',
+      type: 'action',
+      onPress: handleClearRecent,
+    },
+  ];
+
+  const accountSettings: SettingItem[] = [
+    {
+      id: 'signOut',
+      title: 'Sign Out',
+      icon: 'arrow.right.square',
+      type: 'action',
+      onPress: handleSignOut,
+    },
+  ];
+
+  const renderSettingItem = (item: SettingItem) => {
+    return (
+      <Pressable
+        key={item.id}
+        style={styles.settingItem}
+        onPress={() => handleSettingPress(item)}
+      >
+        <View style={styles.settingLeft}>
+          <IconSymbol name={item.icon} size={24} color={colors.text} />
+          <Text style={styles.settingTitle}>{item.title}</Text>
+        </View>
+        {item.type === 'toggle' && (
+          <Switch
+            value={item.value}
+            onValueChange={() => handleSettingPress(item)}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={colors.buttonText}
+          />
+        )}
+        {item.type === 'navigation' && (
+          <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+        )}
+      </Pressable>
+    );
+  };
+
   return (
-    <>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           title: 'Settings',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.text,
+          headerShadowVisible: false,
         }}
       />
 
-      <View style={commonStyles.container}>
-        <ScrollView contentContainerStyle={[
-          styles.scrollContent,
-          Platform.OS !== 'ios' && styles.scrollContentWithTabBar
-        ]}>
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <IconSymbol name="gear" size={40} color={colors.primary} />
-            </View>
-            <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>
-              Customize your SmartPDF experience
-            </Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Profile Section */}
+        <View style={styles.profileSection}>
+          <View style={styles.avatarContainer}>
+            <IconSymbol name="person.circle.fill" size={80} color={colors.primary} />
           </View>
+          <Text style={styles.profileName}>{profile?.full_name || 'User'}</Text>
+          <Text style={styles.profileEmail}>{user?.email}</Text>
+        </View>
 
-          {settingsSections.map((section, sectionIndex) => (
-            <View key={sectionIndex} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.items.map((item, itemIndex) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.settingCard}
-                  onPress={() => handleSettingPress(item)}
-                  disabled={item.type === 'toggle' || item.type === 'info'}
-                >
-                  <View style={[styles.settingIcon, { backgroundColor: colors.primary + '20' }]}>
-                    <IconSymbol name={item.icon as any} size={24} color={colors.primary} />
-                  </View>
-                  <View style={styles.settingContent}>
-                    <Text style={styles.settingLabel}>{item.label}</Text>
-                    <Text style={styles.settingDescription}>{item.description}</Text>
-                  </View>
-                  {item.type === 'toggle' && (
-                    <Switch
-                      value={item.value}
-                      onValueChange={(value) => updateSetting(item.id, value)}
-                      trackColor={{ false: colors.border, true: colors.primary + '60' }}
-                      thumbColor={item.value ? colors.primary : '#f4f3f4'}
-                    />
-                  )}
-                  {item.type === 'option' && (
-                    <View style={styles.optionValue}>
-                      <Text style={styles.optionValueText}>{item.value}</Text>
-                      <IconSymbol name="chevron.right" size={16} color={colors.textSecondary} />
-                    </View>
-                  )}
-                  {item.type === 'action' && (
-                    <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
-                  )}
-                  {item.type === 'info' && (
-                    <Text style={styles.infoValue}>{item.value}</Text>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          ))}
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              SmartPDF Mobile Toolkit
-            </Text>
-            <Text style={styles.footerSubtext}>
-              Privacy-first PDF management
-            </Text>
+        {/* Appearance Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <View style={styles.settingsGroup}>
+            {appearanceSettings.map(renderSettingItem)}
           </View>
-        </ScrollView>
-      </View>
-    </>
+        </View>
+
+        {/* OCR Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>OCR Settings</Text>
+          <View style={styles.settingsGroup}>
+            {ocrSettings.map(renderSettingItem)}
+          </View>
+        </View>
+
+        {/* Storage Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Storage</Text>
+          <View style={styles.settingsGroup}>
+            {storageSettings.map(renderSettingItem)}
+          </View>
+        </View>
+
+        {/* Account Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.settingsGroup}>
+            {accountSettings.map(renderSettingItem)}
+          </View>
+        </View>
+
+        {/* App Info */}
+        <View style={styles.appInfo}>
+          <Text style={styles.appInfoText}>SmartPDF Toolkit v1.0.0</Text>
+          <Text style={styles.appInfoText}>© 2025 All rights reserved</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 20,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  scrollContentWithTabBar: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
     paddingBottom: 100,
   },
-  header: {
+  profileSection: {
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
+    marginBottom: 32,
+    paddingVertical: 20,
   },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
+  avatarContainer: {
     marginBottom: 16,
   },
-  headerTitle: {
+  profileName: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: colors.text,
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 14,
+  profileEmail: {
+    fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'center',
   },
   section: {
     marginBottom: 24,
-    paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.text,
     marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    paddingLeft: 4,
   },
-  settingCard: {
-    ...commonStyles.card,
+  settingsGroup: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 0,
-    marginVertical: 6,
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  settingIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingContent: {
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  settingDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  optionValue: {
+  settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 12,
   },
-  optionValueText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginRight: 4,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-  footerText: {
+  settingTitle: {
     fontSize: 16,
-    fontWeight: '600',
     color: colors.text,
+  },
+  appInfo: {
+    alignItems: 'center',
+    marginTop: 32,
+    paddingVertical: 20,
+  },
+  appInfoText: {
+    fontSize: 12,
+    color: colors.textSecondary,
     marginBottom: 4,
-  },
-  footerSubtext: {
-    fontSize: 13,
-    color: colors.textSecondary,
   },
 });
