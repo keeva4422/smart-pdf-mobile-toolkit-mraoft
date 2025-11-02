@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -16,12 +16,42 @@ export default function SummarizeScreen() {
   const [provider, setProvider] = useState<'openrouter' | 'gemini'>('openrouter');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    console.log('SummarizeScreen mounted, currentDocument:', currentDocument);
+    if (!currentDocument) {
+      console.log('No current document, redirecting to home');
+      Alert.alert('No Document', 'Please select a PDF document first.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(tabs)/(home)/'),
+        },
+      ]);
+    }
+  }, [currentDocument]);
+
   if (!currentDocument) {
-    router.replace('/(tabs)/(home)');
-    return null;
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <IconSymbol name="exclamationmark.triangle" size={48} color={colors.error} />
+          <Text style={styles.errorText}>No document loaded</Text>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)/(home)/')}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const generateSummary = async () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
+
     setProcessing(true);
     setError('');
     
@@ -50,15 +80,15 @@ export default function SummarizeScreen() {
         throw functionError;
       }
 
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
 
-      setSummary(data.summary);
+      setSummary(data?.summary || 'No summary generated');
       Alert.alert('Success', 'Summary generated successfully!');
     } catch (err: any) {
       console.error('Error generating summary:', err);
-      const errorMessage = err.message || 'Failed to generate summary. Please try again.';
+      const errorMessage = err?.message || 'Failed to generate summary. Please try again.';
       setError(errorMessage);
       Alert.alert('Error', errorMessage);
     } finally {
@@ -90,7 +120,7 @@ export default function SummarizeScreen() {
           headerBackTitle: 'Back',
           headerLeft: () => (
             <Pressable
-              style={styles.backButton}
+              style={styles.headerBackButton}
               onPress={() => router.push('/(tabs)/(home)/')}
             >
               <IconSymbol name="house.fill" size={22} color={colors.primary} />
@@ -119,10 +149,10 @@ export default function SummarizeScreen() {
             <IconSymbol name="doc.fill" size={32} color={colors.primary} />
             <View style={styles.documentInfo}>
               <Text style={styles.documentName} numberOfLines={1}>
-                {currentDocument.name}
+                {currentDocument?.name || 'Unknown'}
               </Text>
               <Text style={styles.documentMeta}>
-                {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
+                {currentDocument?.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
               </Text>
             </View>
           </View>
@@ -204,7 +234,7 @@ export default function SummarizeScreen() {
         {error && (
           <View style={styles.errorCard}>
             <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorTextCard}>{error}</Text>
           </View>
         )}
 
@@ -262,13 +292,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  backButton: {
+  headerBackButton: {
     marginLeft: 12,
     padding: 8,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   headerButton: {
     padding: 8,
@@ -412,7 +466,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.error + '40',
   },
-  errorText: {
+  errorTextCard: {
     fontSize: 14,
     color: colors.error,
     marginLeft: 12,

@@ -18,16 +18,41 @@ export default function OCRScreen() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log('OCRScreen mounted, currentDocument:', currentDocument);
     if (!currentDocument) {
-      router.replace('/(tabs)/(home)');
+      console.log('No current document, redirecting to home');
+      Alert.alert('No Document', 'Please select a PDF document first.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(tabs)/(home)/'),
+        },
+      ]);
     }
-  }, [currentDocument, router]);
+  }, [currentDocument]);
 
   if (!currentDocument) {
-    return null;
+    return (
+      <View style={commonStyles.container}>
+        <View style={styles.errorContainer}>
+          <IconSymbol name="exclamationmark.triangle" size={48} color={colors.error} />
+          <Text style={styles.errorText}>No document loaded</Text>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)/(home)/')}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const performOCR = async () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
+
     setProcessing(true);
     setProgress(0);
     setError('');
@@ -97,7 +122,7 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
       Alert.alert('Success', 'Text extraction completed!');
     } catch (err: any) {
       console.error('OCR error:', err);
-      setError(err.message || 'Failed to extract text');
+      setError(err?.message || 'Failed to extract text');
       Alert.alert('Error', 'Failed to extract text. Please try again.');
     } finally {
       setProcessing(false);
@@ -119,7 +144,7 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
           headerBackTitle: 'Back',
           headerLeft: () => (
             <Pressable
-              style={styles.backButton}
+              style={styles.headerBackButton}
               onPress={() => router.push('/(tabs)/(home)/')}
             >
               <IconSymbol name="house.fill" size={22} color={colors.primary} />
@@ -143,10 +168,10 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
             <IconSymbol name="doc.fill" size={32} color={colors.primary} />
             <View style={styles.documentInfo}>
               <Text style={styles.documentName} numberOfLines={1}>
-                {currentDocument.name}
+                {currentDocument?.name || 'Unknown'}
               </Text>
               <Text style={styles.documentMeta}>
-                {currentDocument.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
+                {currentDocument?.pageCount ? `${currentDocument.pageCount} pages` : 'PDF Document'}
               </Text>
             </View>
           </View>
@@ -176,7 +201,7 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
         {error && (
           <View style={styles.errorCard}>
             <IconSymbol name="xmark.circle.fill" size={24} color={colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorTextCard}>{error}</Text>
           </View>
         )}
 
@@ -218,13 +243,37 @@ Pages: ${currentDocument.pageCount || 'Unknown'}`;
 }
 
 const styles = StyleSheet.create({
-  backButton: {
+  headerBackButton: {
     marginLeft: 12,
     padding: 8,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   infoCard: {
     ...commonStyles.card,
@@ -326,7 +375,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.error + '40',
   },
-  errorText: {
+  errorTextCard: {
     fontSize: 14,
     color: colors.error,
     marginLeft: 12,

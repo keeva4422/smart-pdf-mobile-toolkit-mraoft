@@ -18,13 +18,33 @@ export default function ViewerScreen() {
   const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
+    console.log('ViewerScreen mounted, currentDocument:', currentDocument);
     if (!currentDocument) {
-      router.replace('/(tabs)/(home)');
+      console.log('No current document, redirecting to home');
+      Alert.alert('No Document', 'Please select a PDF document first.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(tabs)/(home)/'),
+        },
+      ]);
     }
-  }, [currentDocument, router]);
+  }, [currentDocument]);
 
   if (!currentDocument) {
-    return null;
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <IconSymbol name="exclamationmark.triangle" size={48} color={colors.error} />
+          <Text style={styles.errorText}>No document loaded</Text>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)/(home)/')}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const handleLoadComplete = (numberOfPages: number) => {
@@ -39,14 +59,26 @@ export default function ViewerScreen() {
   };
 
   const handleOCR = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/ocr');
   };
 
   const handleEdit = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/edit');
   };
 
   const handleSummarize = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/summarize');
   };
 
@@ -55,14 +87,26 @@ export default function ViewerScreen() {
   };
 
   const handleChat = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/chat');
   };
 
   const handleConverter = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/converter');
   };
 
   const handleAIFeatures = () => {
+    if (!currentDocument) {
+      Alert.alert('Error', 'No document loaded');
+      return;
+    }
     router.push('/ai-features');
   };
 
@@ -70,11 +114,11 @@ export default function ViewerScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: currentDocument.name,
+          title: currentDocument?.name || 'PDF Viewer',
           headerBackTitle: 'Back',
           headerLeft: () => (
             <Pressable
-              style={styles.backButton}
+              style={styles.headerBackButton}
               onPress={() => router.push('/(tabs)/(home)/')}
             >
               <IconSymbol name="house.fill" size={22} color={colors.primary} />
@@ -94,11 +138,17 @@ export default function ViewerScreen() {
       />
 
       <View style={styles.viewerContainer}>
-        <PDFViewer
-          source={{ uri: currentDocument.uri }}
-          onLoadComplete={handleLoadComplete}
-          onPageChanged={handlePageChanged}
-        />
+        {currentDocument?.uri ? (
+          <PDFViewer
+            source={{ uri: currentDocument.uri }}
+            onLoadComplete={handleLoadComplete}
+            onPageChanged={handlePageChanged}
+          />
+        ) : (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Invalid document URI</Text>
+          </View>
+        )}
       </View>
 
       {totalPages > 0 && (
@@ -146,7 +196,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  backButton: {
+  headerBackButton: {
     marginLeft: 12,
     padding: 8,
   },
@@ -161,6 +211,30 @@ const styles = StyleSheet.create({
   viewerContainer: {
     flex: 1,
     backgroundColor: colors.card,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   pageIndicator: {
     position: 'absolute',

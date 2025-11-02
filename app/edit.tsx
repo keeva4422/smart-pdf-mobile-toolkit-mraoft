@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, TextInput, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -33,9 +33,34 @@ export default function EditScreen() {
   const [textInput, setTextInput] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    console.log('EditScreen mounted, currentDocument:', currentDocument);
+    if (!currentDocument) {
+      console.log('No current document, redirecting to home');
+      Alert.alert('No Document', 'Please select a PDF document first.', [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/(tabs)/(home)/'),
+        },
+      ]);
+    }
+  }, [currentDocument]);
+
   if (!currentDocument) {
-    router.replace('/(tabs)/(home)');
-    return null;
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <IconSymbol name="exclamationmark.triangle" size={48} color={colors.error} />
+          <Text style={styles.errorText}>No document loaded</Text>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)/(home)/')}
+          >
+            <Text style={styles.backButtonText}>Go to Home</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const tools = [
@@ -69,7 +94,7 @@ export default function EditScreen() {
       timestamp: Date.now(),
     };
 
-    const newAnnotations = [...annotations, newAnnotation];
+    const newAnnotations = [...(annotations || []), newAnnotation];
     setAnnotations(newAnnotations);
     
     const newHistory = history.slice(0, historyIndex + 1);
@@ -88,7 +113,7 @@ export default function EditScreen() {
   };
 
   const handleEraser = () => {
-    if (annotations.length > 0) {
+    if (annotations && annotations.length > 0) {
       Alert.alert(
         'Remove Annotation',
         'Remove the most recent annotation?',
@@ -136,7 +161,7 @@ export default function EditScreen() {
   };
 
   const handleSave = async () => {
-    if (!user || !currentDocument.id) {
+    if (!user || !currentDocument?.id) {
       Alert.alert('Error', 'You must be logged in to save annotations.');
       return;
     }
@@ -148,7 +173,7 @@ export default function EditScreen() {
         .delete()
         .eq('document_id', currentDocument.id);
 
-      if (annotations.length > 0) {
+      if (annotations && annotations.length > 0) {
         const annotationsToSave = annotations.map(ann => ({
           document_id: currentDocument.id,
           user_id: user.id,
@@ -190,7 +215,7 @@ export default function EditScreen() {
           headerBackTitle: 'Back',
           headerLeft: () => (
             <Pressable
-              style={styles.backButton}
+              style={styles.headerBackButton}
               onPress={() => router.push('/(tabs)/(home)/')}
             >
               <IconSymbol name="house.fill" size={22} color={colors.primary} />
@@ -279,12 +304,12 @@ export default function EditScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>File Name:</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
-              {currentDocument.name}
+              {currentDocument?.name || 'Unknown'}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Annotations:</Text>
-            <Text style={styles.infoValue}>{annotations.length}</Text>
+            <Text style={styles.infoValue}>{annotations?.length || 0}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>History Steps:</Text>
@@ -292,7 +317,7 @@ export default function EditScreen() {
           </View>
         </View>
 
-        {annotations.length > 0 && (
+        {annotations && annotations.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Annotations</Text>
             <ScrollView style={styles.annotationsList} nestedScrollEnabled>
@@ -382,13 +407,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  backButton: {
+  headerBackButton: {
     marginLeft: 12,
     padding: 8,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   headerButton: {
     marginRight: 16,

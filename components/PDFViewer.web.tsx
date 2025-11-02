@@ -4,18 +4,26 @@ import { View, StyleSheet, Text } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 
 interface PDFViewerProps {
-  uri: string;
+  source?: { uri: string };
+  uri?: string;
   onLoadComplete?: (numberOfPages: number) => void;
   onPageChanged?: (page: number, numberOfPages: number) => void;
   onError?: (error: any) => void;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({
+  source,
   uri,
   onLoadComplete,
   onPageChanged,
   onError,
 }) => {
+  const pdfUri = source?.uri || uri;
+
+  React.useEffect(() => {
+    console.log('PDFViewer (web) mounted with URI:', pdfUri);
+  }, [pdfUri]);
+
   return (
     <View style={styles.container}>
       <View style={styles.webNotSupported}>
