@@ -16,8 +16,8 @@ export default function TabLayout() {
     {
       name: 'profile',
       route: '/(tabs)/profile',
-      icon: 'person.fill',
-      label: 'Profile',
+      icon: 'gear',
+      label: 'Settings',
     },
   ];
 

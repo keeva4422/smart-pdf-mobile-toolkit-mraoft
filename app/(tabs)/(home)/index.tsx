@@ -1,161 +1,306 @@
-import React from "react";
-import { Stack, Link } from "expo-router";
-import { FlatList, Pressable, StyleSheet, View, Text, Alert, Platform } from "react-native";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
 
-const ICON_COLOR = "#007AFF";
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import { IconSymbol } from '@/components/IconSymbol';
+import { RecentFileCard } from '@/components/RecentFileCard';
+import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
+import { usePDF } from '@/contexts/PDFContext';
+import { PDFDocument } from '@/types/pdf';
 
 export default function HomeScreen() {
-  const theme = useTheme();
-  const modalDemos = [
-    {
-      title: "Standard Modal",
-      description: "Full screen modal presentation",
-      route: "/modal",
-      color: "#007AFF",
-    },
-    {
-      title: "Form Sheet",
-      description: "Bottom sheet with detents and grabber",
-      route: "/formsheet",
-      color: "#34C759",
-    },
-    {
-      title: "Transparent Modal",
-      description: "Overlay without obscuring background",
-      route: "/transparent-modal",
-      color: "#FF9500",
+  const router = useRouter();
+  const { recentFiles, loadRecentFiles, addRecentFile, removeRecentFile, setCurrentDocument } = usePDF();
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    loadRecentFiles();
+  }, []);
+
+  const handleOpenPDF = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      console.log('Document picker result:', result);
+
+      if (result.canceled) {
+        console.log('Document picker was cancelled');
+        return;
+      }
+
+      if (result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const pdfDoc: PDFDocument = {
+          id: Date.now().toString(),
+          name: asset.name,
+          uri: asset.uri,
+          size: asset.size || 0,
+          mimeType: asset.mimeType || 'application/pdf',
+          dateAdded: Date.now(),
+        };
+
+        console.log('PDF document created:', pdfDoc);
+        
+        await addRecentFile(pdfDoc);
+        setCurrentDocument(pdfDoc);
+        router.push('/viewer');
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to open PDF file. Please try again.');
     }
-  ];
+  };
 
-  const renderModalDemo = ({ item }: { item: (typeof modalDemos)[0] }) => (
-    <GlassView style={[
-      styles.demoCard,
-      Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-    ]} glassEffectStyle="regular">
-      <View style={[styles.demoIcon, { backgroundColor: item.color }]}>
-        <IconSymbol name="square.grid.3x3" color="white" size={24} />
-      </View>
-      <View style={styles.demoContent}>
-        <Text style={[styles.demoTitle, { color: theme.colors.text }]}>{item.title}</Text>
-        <Text style={[styles.demoDescription, { color: theme.dark ? '#98989D' : '#666' }]}>{item.description}</Text>
-      </View>
-      <Link href={item.route as any} asChild>
-        <Pressable>
-          <GlassView style={[
-            styles.tryButton,
-            Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }
-          ]} glassEffectStyle="clear">
-            <Text style={[styles.tryButtonText, { color: theme.colors.primary }]}>Try It</Text>
-          </GlassView>
-        </Pressable>
-      </Link>
-    </GlassView>
-  );
+  const handleFilePress = (file: PDFDocument) => {
+    console.log('Opening file:', file.name);
+    setCurrentDocument(file);
+    addRecentFile(file);
+    router.push('/viewer');
+  };
 
-  const renderHeaderRight = () => (
-    <Pressable
-      onPress={() => Alert.alert("Not Implemented", "This feature is not implemented yet")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol name="plus" color={theme.colors.primary} />
-    </Pressable>
-  );
+  const handleDeleteFile = (fileId: string) => {
+    Alert.alert(
+      'Delete File',
+      'Remove this file from recent files?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => removeRecentFile(fileId),
+        },
+      ]
+    );
+  };
 
-  const renderHeaderLeft = () => (
-    <Pressable
-      onPress={() => Alert.alert("Not Implemented", "This feature is not implemented yet")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol
-        name="gear"
-        color={theme.colors.primary}
-      />
-    </Pressable>
-  );
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    Alert.alert('Dark Mode', 'Dark mode toggle is coming soon!');
+  };
 
   return (
     <>
-      {Platform.OS === 'ios' && (
-        <Stack.Screen
-          options={{
-            title: "Building the app...",
-            headerRight: renderHeaderRight,
-            headerLeft: renderHeaderLeft,
-          }}
-        />
-      )}
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <FlatList
-          data={modalDemos}
-          renderItem={renderModalDemo}
-          keyExtractor={(item) => item.route}
-          contentContainerStyle={[
-            styles.listContainer,
-            Platform.OS !== 'ios' && styles.listContainerWithTabBar
-          ]}
-          contentInsetAdjustmentBehavior="automatic"
+      <Stack.Screen
+        options={{
+          title: 'SmartPDF Toolkit',
+          headerRight: () => (
+            <Pressable onPress={toggleDarkMode} style={styles.headerButton}>
+              <IconSymbol
+                name={darkMode ? 'sun.max.fill' : 'moon.fill'}
+                size={22}
+                color={colors.primary}
+              />
+            </Pressable>
+          ),
+        }}
+      />
+      
+      <View style={commonStyles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-        />
+        >
+          <View style={styles.heroSection}>
+            <View style={styles.iconCircle}>
+              <IconSymbol name="doc.text.fill" size={48} color={colors.primary} />
+            </View>
+            <Text style={styles.heroTitle}>SmartPDF Toolkit</Text>
+            <Text style={styles.heroSubtitle}>
+              View, scan, edit, and summarize PDFs on your mobile device
+            </Text>
+          </View>
+
+          <View style={styles.actionSection}>
+            <Pressable
+              style={[buttonStyles.primary, styles.primaryButton]}
+              onPress={handleOpenPDF}
+            >
+              <IconSymbol name="doc.badge.plus" size={24} color="#FFFFFF" style={styles.buttonIcon} />
+              <Text style={styles.primaryButtonText}>Open PDF</Text>
+            </Pressable>
+
+            <View style={styles.featureGrid}>
+              <View style={styles.featureCard}>
+                <IconSymbol name="doc.text.viewfinder" size={32} color={colors.accent} />
+                <Text style={styles.featureTitle}>OCR</Text>
+                <Text style={styles.featureDescription}>Extract text from images</Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <IconSymbol name="pencil.tip.crop.circle" size={32} color={colors.secondary} />
+                <Text style={styles.featureTitle}>Edit</Text>
+                <Text style={styles.featureDescription}>Annotate & highlight</Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <IconSymbol name="doc.text.magnifyingglass" size={32} color={colors.primary} />
+                <Text style={styles.featureTitle}>Summarize</Text>
+                <Text style={styles.featureDescription}>AI-powered summaries</Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <IconSymbol name="square.and.arrow.up" size={32} color={colors.success} />
+                <Text style={styles.featureTitle}>Export</Text>
+                <Text style={styles.featureDescription}>Share & save</Text>
+              </View>
+            </View>
+          </View>
+
+          {recentFiles.length > 0 && (
+            <View style={styles.recentSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Recent Files</Text>
+                <Text style={styles.sectionCount}>{recentFiles.length}</Text>
+              </View>
+              
+              {recentFiles.map((file) => (
+                <RecentFileCard
+                  key={file.id}
+                  file={file}
+                  onPress={() => handleFilePress(file)}
+                  onDelete={() => handleDeleteFile(file.id)}
+                />
+              ))}
+            </View>
+          )}
+
+          {recentFiles.length === 0 && (
+            <View style={styles.emptyState}>
+              <IconSymbol name="doc.text" size={64} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No recent files</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Open a PDF to get started
+              </Text>
+            </View>
+          )}
+        </ScrollView>
       </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    // backgroundColor handled dynamically
+  scrollContent: {
+    paddingBottom: Platform.OS === 'ios' ? 20 : 100,
   },
-  listContainer: {
-    paddingVertical: 16,
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  iconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  actionSection: {
     paddingHorizontal: 16,
+    marginBottom: 24,
   },
-  listContainerWithTabBar: {
-    paddingBottom: 100, // Extra padding for floating tab bar
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
-  demoCard: {
+  buttonIcon: {
+    marginRight: 8,
+  },
+  primaryButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  featureCard: {
+    width: '48%',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    alignItems: 'center',
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.08)',
+    elevation: 2,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  recentSection: {
+    marginTop: 8,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  demoIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    backgroundColor: colors.primary + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  emptyState: {
     alignItems: 'center',
-    marginRight: 16,
+    paddingVertical: 48,
+    paddingHorizontal: 20,
   },
-  demoContent: {
-    flex: 1,
-  },
-  demoTitle: {
+  emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
+    color: colors.text,
+    marginTop: 16,
     marginBottom: 4,
-    // color handled dynamically
   },
-  demoDescription: {
+  emptyStateSubtext: {
     fontSize: 14,
-    lineHeight: 18,
-    // color handled dynamically
+    color: colors.textSecondary,
   },
-  headerButtonContainer: {
-    padding: 6,
-  },
-  tryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  tryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    // color handled dynamically
+  headerButton: {
+    padding: 8,
+    marginRight: 8,
   },
 });
