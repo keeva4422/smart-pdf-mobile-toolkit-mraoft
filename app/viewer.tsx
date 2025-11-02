@@ -21,7 +21,7 @@ export default function ViewerScreen() {
       Alert.alert('No Document', 'Please select a PDF file first');
       router.back();
     }
-  }, [currentDocument]);
+  }, [currentDocument, router]);
 
   const handleLoadComplete = (numberOfPages: number) => {
     console.log(`PDF loaded with ${numberOfPages} pages`);

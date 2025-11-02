@@ -22,7 +22,7 @@ export default function AuthLayout() {
       // User is not signed in and not in auth group, redirect to login
       router.replace('/(auth)/login');
     }
-  }, [session, loading, segments]);
+  }, [session, loading, segments, router]);
 
   if (loading) {
     return (

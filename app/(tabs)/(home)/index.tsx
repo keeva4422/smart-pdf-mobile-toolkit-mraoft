@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { PDFDocument } from '@/types/pdf';
 import { colors, commonStyles, buttonStyles } from '@/styles/commonStyles';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from 'react-native';
@@ -12,17 +12,12 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { supabase } from '@/app/integrations/supabase/client';
 
 export default function HomeScreen() {
-  const { currentDocument, recentFiles, setCurrentDocument, loadRecentFiles, addRecentFile } = usePDF();
+  const { currentDocument, recentFiles, setCurrentDocument, loadRecentFiles, addRecentFile, removeRecentFile } = usePDF();
   const { user, signOut } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    loadRecentFiles();
-    loadUserDocuments();
-  }, []);
-
-  const loadUserDocuments = async () => {
+  const loadUserDocuments = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -41,7 +36,12 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Exception loading documents:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadRecentFiles();
+    loadUserDocuments();
+  }, [loadRecentFiles, loadUserDocuments]);
 
   const handleOpenPDF = async () => {
     try {
@@ -112,7 +112,6 @@ export default function HomeScreen() {
           style: 'destructive',
           onPress: async () => {
             // Delete from local storage
-            const { removeRecentFile } = usePDF();
             await removeRecentFile(fileId);
 
             // Delete from Supabase if user is logged in

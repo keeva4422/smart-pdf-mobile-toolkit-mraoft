@@ -21,7 +21,7 @@ export default function OCRScreen() {
     if (!currentDocument) {
       router.replace('/(tabs)/(home)');
     }
-  }, [currentDocument]);
+  }, [currentDocument, router]);
 
   if (!currentDocument) {
     return null;

@@ -2,7 +2,7 @@
 import { IconSymbol } from "@/components/IconSymbol";
 import { storageUtils } from "@/utils/storage";
 import { colors, commonStyles } from "@/styles/commonStyles";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Stack, useRouter } from "expo-router";
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Platform } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,12 +25,7 @@ export default function SettingsScreen() {
   const [highQualityOCR, setHighQualityOCR] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
-  useEffect(() => {
-    loadSettings();
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -49,7 +44,12 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Exception loading profile:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadSettings();
+    loadProfile();
+  }, [loadProfile]);
 
   const loadSettings = async () => {
     try {

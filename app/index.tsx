@@ -20,7 +20,7 @@ export default function Index() {
       // User is not authenticated, redirect to login
       router.replace('/(auth)/login');
     }
-  }, [session, loading]);
+  }, [session, loading, router]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
